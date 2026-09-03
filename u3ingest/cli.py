@@ -145,6 +145,24 @@ async def run_pipeline(a: argparse.Namespace) -> None:
              unknown_books=dict(p.books.unknown), unresolved_fixtures=len(p.fixtures.unresolved))
 
 
+async def run_archive_sync(a: argparse.Namespace) -> None:
+    from u3ingest.sinks.gcs import GcsArchiveSync
+
+    st = get_settings()
+    root = a.root or st.raw_dir
+    bucket = a.bucket or st.gcs_bucket
+    if not bucket:
+        raise SystemExit("U3_GCS_BUCKET or --bucket is required")
+    syncer = GcsArchiveSync(root=root, bucket=bucket, prefix=a.prefix)
+    if a.every:
+        while True:
+            counts = await syncer.sync_once(include_current=a.include_current, delete_after_upload=a.delete_after_upload)
+            log.info("gcs archive sync pass", root=root, bucket=bucket, prefix=a.prefix, **counts)
+            await asyncio.sleep(a.every)
+    counts = await syncer.sync_once(include_current=a.include_current, delete_after_upload=a.delete_after_upload)
+    log.info("gcs archive sync done", root=root, bucket=bucket, prefix=a.prefix, **counts)
+
+
 def main(argv: list[str] | None = None) -> int:
     structlog.configure(processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.add_log_level, structlog.processors.KeyValueRenderer()])
     ap = argparse.ArgumentParser(prog="u3-ingest")
@@ -161,6 +179,16 @@ def main(argv: list[str] | None = None) -> int:
     a3.add_argument("--poll", type=float, default=30.0, help="SharpSports /prices poll interval seconds"); a3.add_argument("--seconds", type=float, default=0)
     a3.add_argument("--no-opticodds", action="store_true"); a3.add_argument("--no-oddspapi", action="store_true"); a3.add_argument("--no-sharpsports", action="store_true")
     a3.add_argument("--apply-schema", action="store_true"); a3.set_defaults(fn=run_pipeline)
+    a4 = sub.add_parser("archive-sync", help="upload closed raw archive files to GCS")
+    a4.add_argument("--root")
+    a4.add_argument("--bucket")
+    a4.add_argument("--prefix", default="raw")
+    a4.add_argument("--include-current", action="store_true")
+    a4.add_argument("--delete-after-upload", action="store_true")
+    g = a4.add_mutually_exclusive_group()
+    g.add_argument("--once", action="store_true")
+    g.add_argument("--every", type=float)
+    a4.set_defaults(fn=run_archive_sync)
     a = ap.parse_args(argv)
 
     async def runner() -> None:
