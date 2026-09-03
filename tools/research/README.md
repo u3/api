@@ -14,3 +14,4 @@ Scripts used to build the provider specs and the integration plan. They read/wri
 | `plan_panel.py` | Judge-panel planning: four planners (different angles/models) → two judges → final synthesis into `docs/PLAN.md`. |
 
 Required env: `OPTICODDS_API_KEY`, `ODDSPAPI_API_KEY`, `SHARPSPORTS_API_KEY` (public) and `SHARPSPORTS_API_SECRET` (private key; required for `/events` and betPrices endpoints), `ZENMUX_API_KEY`, `ZENMUX_PLATFORM_API`.
+| `pplx_chat.py` | Perplexity helper (sonar-pro / sonar-reasoning-pro / sonar-deep-research) with citations; key from `PERPLEXITY_API_KEY`. The plan panel context includes both ZenMux and Perplexity research briefs. |
