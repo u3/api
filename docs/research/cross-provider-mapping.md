@@ -106,6 +106,36 @@ Edge cases to encode:
 - **Time base**: OpticOdds `start_date` ISO `Z`; OddsPapi `startTime` **epoch seconds** (+ `trueStartTime`/`trueEndTime` ISO); SharpSports `startTime` ISO `Z`. `FixtureRef.start_time_ms` is UTC ms **[CODE]**.
 - **Status vocabularies**: OpticOdds `status` ∈ `unplayed|live|half|completed|cancelled|suspended|delayed`; OddsPapi `status.statusId` ∈ `0 pregame|1 live|2 finished|3 cancelled` (branch on the id, never `statusName`); SharpSports has **no** event status (infer from `startTime` and `Price.live`). `FixtureRef.status` stores the raw provider string **[CODE]** → planned canonical `fixture_status` enum (§3.3).
 
+#### 1.3.3 Observed coverage by league (cross probe, window 2026-09-03T10:45Z … +3 d) **[LIVE]**
+
+OpticOdds ↔ OddsPapi via `externalProviders.opticoddsId` (`samples/cross/fixture_join.json`):
+
+| League (OpticOdds `league.id` / probe key) | OpticOdds fixtures | matched via `opticoddsId` | only in OpticOdds | notes |
+|---|---|---|---|---|
+| `nba`, `wnba`, `nfl`, `nhl`, `mls`, `ncaab` | 0 | 0 | 0 | off-season / no odds yet in the window |
+| `mlb` | 40 | 40 | 0 | start-time delta 0 s on all pairs |
+| `england_-_premier_league` | 8 | 8 | 0 | OddsPapi tournament 17 |
+| `ncaaf` | 125 | 114 | 11 | the 11 OpticOdds-only fixtures had no `opticoddsId` on the OddsPapi side (OddsPapi still lists the game with `opticoddsId: null`) |
+| OddsPapi fixtures in window with **no** `opticoddsId` | 3,855 of 4,017 | — | — | mostly non-US soccer/tennis (OddsPapi lists 19,954 upcoming fixtures for sports 10–15) |
+
+SharpSports ↔ OpticOdds (`samples/cross/ss_join.json`, 129 resolved `EVNT_ → OpticOdds id` pairs):
+
+| League (SharpSports `league` param) | SS events | `oddsjamId` filled | `theOddsApiId` filled | matched `oddsjamId == game_id` | matched team+time (±15 min) | unmatched | why |
+|---|---|---|---|---|---|---|---|
+| `NBA` (`upcoming=true`) | 15 | 0 | 0 | 0 | 0 | 15 | all are futures containers (`Southwest Division 2026/27`, `MVP 2026/27`) with `startTime: null` |
+| `WNBA` (`upcoming=true`) | 34 | 30 | 0 | 0 | 0 | 34 | OpticOdds had no WNBA fixtures with odds in the window (games on 2026-09-24) |
+| `NFL` (`upcoming=true`) | 292 | 200 | 0 | 0 | 0 | 292 | same (season starts 2026-09-10); the separate check against the OpticOdds NFL sample matched 100/100 `game_id`s |
+| `MLB` | 40 | 40 | 0 | 37 | 3 | 0 | 3 `oddsjamId`s differed from OpticOdds `game_id` (hour suffix) but resolved by team+time |
+| `NHL` (`upcoming=true`) | 8 | 0 | 0 | 0 | 0 | 8 | futures containers |
+| `MLS` | 15 | 10 | 0 | 0 | 0 | 15 | OpticOdds `mls` key returned 0 (probe used the wrong league id; live id is `usa_-_major_league_soccer` **[DOC]**) |
+| `EPL` | 8 | 0 | 0 | 0 | 8 | 0 | SharpSports EPL events carry no `oddsjamId` |
+| `NCAAF` | 87 | 6 | 0 | 6 | 73 | 8 | e.g. `Louisiana-Monroe Warhawks @ Mississippi State Bulldogs`, `Sam Houston Bearkats @ Troy Trojans` — OpticOdds names differ or fixture missing |
+| `NCAAB` | — | — | — | — | — | — | `400 "Invalid league"` for `NCAAB`/`ncaab`; SharpSports abbr is `NCAAMB` (`LGUE_ncaamb`) |
+
+SharpSports vendor-id fill rates in the same sample (`sportsdataioId` / `sportradarId` / `oddsjamId`): NFL 290/272/200, NCAAF 87/87/6, MLB 40/40/40, WNBA 30/30/30, MLS 15/15/10, EPL 8/8/0, NBA 15/0/0, NHL 8/0/0. `theOddsApiId` 0 everywhere.
+
+OddsPapi `externalProviders` non-null counts over all 19,954 upcoming fixtures (sports 10–15): `betradarId` 19,954 · `flashscoreId` 6,774 · `pinnacleId` 3,100 · `opticoddsId` 2,593 · `sofascoreId` 1,346 · `lsportsId` 826 · `mollybetId` 787 · `betgeniusId` 648. The probe run also confirmed `/fixtures/mapping?bookmaker=opticodds` → `403 bookmaker_not_allowed` (same for `betradar`, `flashscore`): the OpticOdds map can only be harvested from `/fixtures`.
+
 ### 1.4 Teams / participants
 
 | Provider | Id | Cross-vendor ids on the object | Join to canonical |
@@ -171,6 +201,18 @@ Sources: OpticOdds `GET /sportsbooks` (229 rows; fields `id, name, logo, is_onsh
 | `3et`, `198bet`, `duel`, `kaiyun`, `paradisewager`, `punter.io`, `sharpbet`, `singbet`, `vertex` | OddsPapi-only (Asian/crypto) | (`duel` exists in OpticOdds) | `3et` (EUR), `198bet`, `duel`, `kaiyun`, `paradisewager` (USD), `punter.io` (EUR), `sharpbet` (EUR), `singbet`, `vertex` (USD) | — | **no** |
 | SharpSports unsupported leftovers | — | — | — | `tb` Test Book, `sh` SugarHouse, `fb` FoxBet, `wb` WynnBet, `tf` ThriveFantasy, `bf` BetFred (all `oddsFeedActive: false`) | no |
 
+Variant / clone handling (OpticOdds exposes many ids per brand; SharpSports one `abbr` per brand; OddsPapi one slug):
+
+| Pattern | OpticOdds examples **[LIVE]** | Canonical treatment |
+|---|---|---|
+| State / country clones | `betrivers_new_york_`, `betmgm_uk_`, `betano_argentina_`, `unibet_united_kingdom_`, `pointsbet_ontario_`, `betfair_exchange_australia_` | parent `book_id` + `book_xref.variant` (`new_york`, `uk`, …); quotes keep `provider_book` so clones can be separated later |
+| Lay side of an exchange | `betfair_exchange_lay_`, `betfair_exchange_australia_lay_` | **own** `book_id` (`betfair_exchange_lay`); prices are lay odds, not back odds |
+| DFS payout variants | `draftkings_pick_2_`, `draftkings_pick_3_`, `draftkings_pick_6_`, `draftkings_pick_6_multipliers_`, `prizepicks_5_or_6_pick_flex_`, `prizepicks_demons_and_goblins_`, `underdog_fantasy_3_or_5_pick_`, `underdog_fantasy_4_pick_flex_`, `underdog_fantasy_multipliers_`, `dabble_3_or_5_pick_`, `betr_picks_all_` | parent `book_id` (`prizepicks`, `underdog`, `draftkings_dfs`) + `variant`; prices are pick'em lines (typically ±100/−137-style), never mix with sportsbook quotes in the board |
+| Prediction-market spin-offs of a book | `draftkings_predictions`, `underdog_predictions`, `fanatics_markets`, `polymarket_usa_` | **own** `book_id` (different venue, different settlement) except `polymarket_usa_` which the registry currently folds into `polymarket` — revisit once its quotes are compared |
+| Pinnacle brands | `pinnacle`, `ps3838`, `ps4848` (both PS ids `is_active: false` at probe time) | `pinnacle` with `variant` |
+| Synthetic / model books | `oddsjam_algo_odds` (docs, inactive), `opticodds_ai`, `opticodds_ai_dfs`, `OpticOdds AI` parlay pricer | `book_id` `opticodds_ai`, `kind='model'`; exclude from arbitrage |
+| SharpSports test rows | `tb` "Test Book" | ignore |
+
 Registry rules:
 
 - **[CODE]** `BookRegistry.resolve(provider, slug)` lowercases, then tries `normalize()` (`[^a-z0-9]+ → _`), and on miss returns `"<provider>:<normalized slug>"` and counts it in `BookRegistry.unknown[(provider, slug)]`. OpticOdds SSE carries `sportsbook` display names (`"Pinnacle"`, `"Prophet X"`) and `sportsbook_id` slugs (`prophet_x`); REST `/fixtures/odds` rows carry only `sportsbook` (display name) → the normalizer resolves on `sportsbook`, so `"Circa Sports"` → `circa_sports` via `normalize()`, but `"Polymarket (USA)"` → `polymarket_usa` ≠ `polymarket_usa_` **[GAP]**.
@@ -207,6 +249,38 @@ Canonical taxonomy rows (each provider's naming for the same canonical market):
 | `other:double_chance`, `other:draw_no_bet` | `double_chance`, `draw_no_bet` | `doublechance`, `drawnobet` | (not in SharpSports taxonomy) | none |
 | futures / outrights | `GET /futures` id `type_{market_id}-sport_{sport_id}-league_{league_id}`; futures odds id `{league_id}:{sportsbook_id}:{market_id}:{normalized_selection}` | `futureId` (`id100000171302811`, `pm6980037088158379224`); future `marketId` 1 Winner, 2 Top Scorer, 3 Relegation, 4 Prediction, 5 MVP — **odds not entitled** | `Future Winner <Competition> <Season>` (`Market.future: true`, new `MKT_` per season); futures events have `startTime: null` | none |
 | prediction-market yes/no (non-sport) | `/stream/prediction-markets` `market_id` `<platform>:<source_market_id>` (`kalshi:AMAZONFTC-29DEC31`, `polymarket:897017`), `outcomes.{yes,no}` with `bids[]/asks[]` | sportIds 69–78 as futures with the question in `season.seasonName` — not entitled | — | contract price 0–1 |
+
+Period mapping (canonical `period` per provider encoding):
+
+| Canonical `period` | OpticOdds market slug prefix / name | OddsPapi `Market.period` (interpret with `sport.sportId`, `expectedPeriods`, `periodLength`) | SharpSports segment (`segmentId` / name prefix) | Sports |
+|---|---|---|---|---|
+| `full` (incl. OT) | no prefix; names may carry `(Incl. OT)` | `result` ("Winner (incl. overtime)", basketball 111) | `SEGM_M` / no prefix (`Bet.segmentDetail` `Including Overtime` only on bets) | all |
+| `reg` (regulation) | `_regular_time` / "(Reg. Time)" names where offered | `fulltime` (basketball 113 "Regular Time Result"; soccer 101) | — | basketball, hockey, soccer |
+| `1h` / `2h` | `1st_half_`, `2nd_half_` | `p1`, `p2` **for soccer** (soccer `expectedPeriods` 2, `periodLength` 45) | `SEGM_1H` / `SEGM_2H` (`1st Half …`) | soccer, basketball, football |
+| `1q`..`4q` | `1st_quarter_` … `4th_quarter_` | `p1`..`p4` when `expectedPeriods` = 4 and `periodLength` = 12/15 | `SEGM_1Q`..`SEGM_4Q` | basketball, football |
+| `1p`..`3p` | `1st_period_` … `3rd_period_` | `p1`..`p3` when `expectedPeriods` = 3, `periodLength` = 20 | `SEGM_1P`..`SEGM_3P` | hockey |
+| `1i`..`9i`, `f3i`, `f5i`, `f7i` | `1st_inning_`, `1st_3_innings_`, `1st_5_innings_`, `1st_7_innings_` (`1st_half_` also used for baseball first-5) | `p1`.. (innings) and combined keys `p1+p2+p3+p4+p5` **[DOC]** | `SEGM_1I`..`SEGM_9I`, `SEGM_F2I`..`SEGM_F8I` | baseball |
+| `set1`..`set5`, games | `1st_set_`, `2nd_set_` | `p1`.. (sets); `p1g1`..`p5g13` sub-periods | `SEGM_S1`..`SEGM_S5`, `SEGM_S1G1`..`SEGM_S5G12` | tennis |
+| rounds | golf `end_of_round_n_leader` names | — | `SEGM_R1`..`SEGM_R4` | golf |
+| `ot` | `overtime_` | `overtime`, `fulltime+overtime`, `p4+overtime` | — | hockey, basketball |
+
+**[CODE]** `split_period` recognizes `1st/2nd half`, `1st..4th quarter`, `1st..3rd period`, `1st 5/3/7 innings`, `1st inning`, `1st/2nd set`, `(reg` and `regulation time`; OddsPapi periods go through `_OP_PERIOD` (see [GAP 5]).
+
+Player-prop metric mapping (verified examples; the SharpSports `Market.oddsjamId` **equals the OpticOdds `market_id` slug** wherever both were observed):
+
+| Canonical `player:<metric>` | OpticOdds `market_id` **[LIVE]** | SharpSports `Market.name` → `metric.id` (`Market.oddsjamId`) **[LIVE/DOC]** | OddsPapi `marketType` **[LIVE]** |
+|---|---|---|---|
+| `player:passing_yards` | `player_passing_yards` | `Player Prop Total Passing Yards` → `METR_passyds` (`player_passing_yards`) | — (NFL market catalogue not probed) |
+| `player:home_runs` | `player_home_runs`; yes/no variant `player_home_runs_yes_no` | `Player Prop Total Home Runs` → `METR_homeruns` (`player_home_runs`; `sportradarId` `sr:market:9003`; `theOddsApiId` `batter_home_runs`) | — |
+| `player:bases` | `player_bases` | `Player Prop Total Bases` → `METR_bases` | — |
+| `player:strikeouts` (pitcher) | `player_strikeouts` | `Player Prop Total Pitcher Strikeouts` → `METR_pitcherstrikeouts` (SharpSports also has `METR_hitterstrikeouts` for `Player Prop Total Hitter Strikeouts`; OpticOdds `player_batting_strikeouts`) | — |
+| `player:hits_runs_rbis` | `player_hits_+_runs_+_rbis` | `Player Prop Total Hits + Runs + RBIs` → `METR_hitsrunsrbis` | — |
+| `player:rushing_receiving_yards` | `player_rushing_+_receiving_yards` | `Player Prop Total Rushing + Receiving Yards` → `METR_rushrecyds` | — |
+| `player:receptions` / `player:touchdowns` | `player_receptions` / `player_touchdowns`, `anytime_touchdown_scorer`, `first_touchdown_scorer` | `METR_receptions` / `METR_touchdowns` | — |
+| `player:shots` / `player:shots_on_goal` (soccer) | `player_shots`, `player_shots_on_target`, `player_outside_box_shots_on_target` | `Player Prop Total Shots` → `METR_shots`, `Player Prop Total Shots On Goal` → `METR_shotsongoal` | `playertotals-shots`, `playertotals-shotsongoal` |
+| `player:tackles`, `player:saves`, `player:assists`, `player:goals` (soccer) | `player_tackles`, `player_saves`, `player_assists`, `anytime_goal_scorer` | `Player Prop Total Tackles` → `METR_tackles`, `METR_saves`, `METR_assists`, `Player Prop Total Goals` → `METR_goals`, `Player Prop First Goal Scorer` (position `Yes`) | `playertotals-tackles`, `playertotals-saves`, `playertotals-assists`, `playertotals-goals` |
+
+`canon_market_from_name` slugs the metric text (`slug("Hits + Runs + RBIs")` → `hits_runs_rbis`), so OpticOdds `player_hits_+_runs_+_rbis` (via its display name "Player Hits + Runs + RBIs") and SharpSports `Player Prop Total Hits + Runs + RBIs` collapse to the same key; SharpSports `METR_*` ids are **not** derivable from names (`METR_passyds` vs `METR_passing_yards` both exist **[LIVE]**) and must be looked up from `GET /metrics` (278 rows).
 
 Mapping functions **[CODE]**: `canon_market_from_name(name)` (OpticOdds `market`, SharpSports `Market.name`): `split_period` regexes → alias table (`moneyline|money line|winner|match winner → moneyline`, `1x2|3-way|3 way|3-way moneyline|moneyline 3-way → 3way`, `point spread|spread|run line|puck line|goal spread|game spread|asian handicap|handicap → spread`, `total|total points|total runs|total goals|total games|over/under|over under|asian total → total`, `team total|team total points|team total runs|team total goals → team_total`) → `player prop`/`batter`/`pitcher`/`goalie` regex → `player:<metric>`; `team prop … total` → `team_total:<metric>` else `team_prop:<metric>`; else `other:<slug>`. `canon_market_oddspapi(marketType, period, marketName)`: `_OP_TYPE` (`moneyline→moneyline, 1x2→3way, spreads→spread, totals→total, teamtotals-team1/2→team_total`), `_OP_PERIOD` (`result→full, regular-time→reg, 1st-half→1h, …`; **note the live period keys are `fulltime`, `p1`, `p2`, which are not in `_OP_PERIOD` and pass through raw [GAP]**), `players-*`/`playertotals-*` → `player:<slug>`, else fall back to the name mapper, else `other:<marketType>`.
 
@@ -319,6 +393,16 @@ Per-quote latency decomposition:
 | End-to-end quote age | `recv_ns/1e6 − timestamp×1000` | `recv_ns/1e6 − (bookmakerChangedAt or changedAt)` | `recv_ns − poll_start_ns` (+ unknown backend refresh cadence) |
 | Implemented | `u3.quote_latency` view: `quantile(0.5/0.99)(recv_ns/1e6 − source_ts_ms)` per `provider, book_id, minute` where `source_ts_ms IS NOT NULL` **[CODE]** | same view | excluded (NULL) |
 
+### 2.7 Event kinds and the quote state machine
+
+| `quotes.event_kind` **[CODE]** | Produced by | Meaning | `active` |
+|---|---|---|---|
+| `snapshot` | OpticOdds REST `/fixtures/odds` (`quotes_from_fixture_rows`), SharpSports `/prices` poll, OddsPapi REST `/fixtures/odds*` when passed `kind='snapshot'` | full-state observation; absence of a previously seen key in a later snapshot means the book pulled it (must be inferred by the board, not stored) | `true` (OpticOdds/SharpSports), `active ∧ marketActive` (OddsPapi) |
+| `update` | OpticOdds SSE `odds`, OddsPapi WS `odds` | latest-state delta; OddsPapi may coalesce ("Treat every message as a state update, not a ledger") | as above |
+| `lock` | OpticOdds SSE `locked-odds` | suspension/removal with the last price | `false` |
+
+State transitions the board must implement: OpticOdds main-line move without alternates = `lock(old)` + `update(new)`; with alternates = `update(new, is_main=true)` + `update(old, is_main=false)` and **no lock**; OddsPapi deactivation = `update(active=false)` (only visible on WS or on `/fixtures/odds/main?since=`); SharpSports removal = key absent from the next snapshot. Reconnects on either stream require a REST re-snapshot (OpticOdds replay is broken **[LIVE]**; OddsPapi `snapshot_required` control frames).
+
 ---
 
 ## 3. Canonical schema
@@ -371,6 +455,16 @@ Canonical Python records **[CODE]** (`u3ingest/canonical/models.py`): `Quote` (s
 `u3ingest/sinks/raw.py`: `<U3_RAW_DIR>/<provider>/<stream>/dt=YYYY-MM-DD/hour=HH/<stream>-<process_start_ms>.jsonl.gz`; each line `{"recv_ns": int, "provider": str, "stream": str, "seq": int, "meta": {...}, "body": <provider payload>}`. Streams in use: `opticodds/sse-odds-<sport>`, `opticodds/sse-prediction-markets-<…>`, `oddspapi/ws-<channels>`, `<provider>/snapshot-<league|sports>`, `bootstrap/registries` (meta `{provider, endpoint, league|sportId}` for `/fixtures/active`, `/fixtures`, `/markets`, `/events`), `sharpsports/prices-<league>`. `u3ingest/sinks/gcs.py` uploads closed hourly files to `gs://<bucket>/raw/...` mirroring the local path (`.gcs_manifest.jsonl` records uploads; current hour skipped). `u3ingest/replay.py` rebuilds `quotes`/`order_book_levels` (Parquet/DuckDB) from the archive by merging files on `recv_ns` and re-running the bootstrap files first.
 
 Planned additions to `meta` per stream **[GAP]**: OpticOdds SSE `{event, id}` already; add the redacted request URL and `x-ratelimit-*` headers on REST snapshots; OddsPapi WS already stores `{channel, type, ts, entryId, raw_len}` plus control frames (`login_ok` without `apiKey`).
+
+Retention policy (raw is the system of record; derived tables are rebuildable via `u3-ingest replay`):
+
+| Layer | Path / table | Retention | Rationale |
+|---|---|---|---|
+| Raw stream archive | `<provider>/<stream>/dt=…/hour=…/*.jsonl.gz` → `gs://<bucket>/raw/…` | permanent | provider history windows are short: OpticOdds tick history ~57–60 days (**[LIVE]**, docs say 2 months) and OLV/CLV ≥ 1 year; OddsPapi odds history/CLV ≈ 220–230 days, settlement ≥ 1 year; SharpSports `/prices` is live-only (past events return `markets: []`) with OHLC history at a 5-minute floor |
+| Bootstrap registries | `bootstrap/registries/…` (`/fixtures/active`, `/fixtures`, `/markets`, `/events`) | permanent | replays need the id crosswalk as of that day |
+| `u3.quotes` | ClickHouse | 400 days (TTL) | one full season + lookback |
+| `u3.order_book_levels` | ClickHouse | 180 days (TTL) | depth is bulky (1.3 M levels per 75 s at probe rates) |
+| `u3.fixture_xref` and planned dimensions | ClickHouse | permanent | small |
 
 ### 3.3 Planned tables (not yet in `schemas/clickhouse.sql`)
 
@@ -462,6 +556,20 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 5. **Players.** Same derivation trick: for an id-joined fixture, OddsPapi player-prop quotes (`playerId`, `playerName`) and OpticOdds quotes (`player_id`, `selection`) on the same canonical market/line can be paired by name within the fixture; SharpSports via `Player.oddsjamId`. Persist to `player_xref` with `method`.
 6. **Regression guard.** A mapping change is applied by `replay` over the raw archive for the affected day and compared (`quotes` row counts per `market`/`selection`, `other:` share) before it is promoted.
 
+### 4.4 SLIs and alarms for the mapping layer
+
+| SLI | Source | Alarm |
+|---|---|---|
+| `fixture_unresolved_ratio` per provider/league | `fixture_xref` (`fixture_id LIKE '<provider>:%'`) | > 10 % for a league where OpticOdds has fixtures with odds |
+| `fixture_join_drift` | daily diff of `opticodds_id` per `oddspapi_id` | any change (an OddsPapi fixture re-pointing to another OpticOdds id) |
+| `book_unknown_quotes` | pipeline reporter `unknown_books` **[CODE]** / `quotes.book_id LIKE '%:%'` | > 0 for a book that is in the entitled catalogue |
+| `market_other_share` | `quotes.market LIKE 'other:%'` by volume | > 10 % or a new `other:` key above 1 % |
+| `selection_other_share` | `quotes.selection LIKE 'other:%'` | > 5 % on `moneyline|3way|spread|total|team_total` |
+| `cross_provider_price_disagreement` | same canonical key + `book_id`, two providers, ≤ 5 s apart, `abs(price_dec_A − price_dec_B) > 0.02` | > 1 % of comparable pairs (indicates side/sign mapping errors) |
+| `quote_age_p99_ms` per provider/book | `u3.quote_latency` | > 5,000 ms pregame / > 2,000 ms live for `websocketLive` books |
+| `book_stale_minutes` | planned `book_status` (`staleOdds`, `lastOddsAt`, OpticOdds `last-polled`) | any streamed book stale > `staleThresholdSec` |
+| `catalogue_drift` | daily diff of `/sportsbooks`, `/bookmakers`, `/books` vs `book_xref` | new/removed ids ⇒ queue row |
+
 ---
 
 ## 5. Known gaps and ambiguities (with operational resolution)
@@ -526,3 +634,19 @@ Same selection across feeds (full-time total goals, Over 3.5, Pinnacle):
 | OpticOdds | `id` `42573-28098-2026-09-04:pinnacle:total_goals:over_3_5`, `market` `Total Goals`, `selection_line` `over`, `points` 3.5, `price` 120, `is_main` (per row), `limits.max` (per row), `timestamp` 1788423449.84 | `book_id=pinnacle, market=total, period=full, selection=over, line=3.5, price_us=120, price_dec=2.2, source_ts_ms=1788423449842` |
 | OddsPapi | `oddsId` `id1000001772221244:pinnacle:101030:0` (marketId 101030 = `totals`/`fulltime`/handicap 3.5 → outcome `Over`), `price` 2.22, `mainLine` true, `limit` 50.0, `changedAt` 1788375642620, `bookmakerChangedAt` 1788375642127 | `book_id=pinnacle, market=total, period=<raw 'fulltime' today [GAP 5]>, selection=over, line=3.5, price_dec=2.22, limit_max=50.0, source_ts_ms=1788375642127, gateway_ts_ms=<ws ts>` |
 | SharpSports | Pinnacle is not offered on this EPL event (books present: `mg, fd, br, dk, hr`); for `Total` / `Over` at `br`: `{line: 2.5, odds: 155, main: false, live: false, ev: null}` | `book_id=betrivers, market=total, period=full, selection=over, line=2.5, price_us=155, source_ts_ms=NULL, event_kind=snapshot` |
+
+## Appendix C — bootstrap sequence and ingestion universe **[CODE]**
+
+`u3ingest/pipeline.py` `Pipeline.bootstrap()` runs, in order, and archives every response under `bootstrap/registries`:
+
+| Step | Call | What it feeds | Observed at the 75 s live run **[LIVE]** |
+|---|---|---|---|
+| 1 | OpticOdds `GET /fixtures/active?league=<id>` per configured league (`OpticOddsClient.fixtures_active`, paginated; `include_statsperform_id` is passed by the client) | `OpticOddsNormalizer.remember_fixture` → `FixtureRegistry.add_opticodds` (canonical ids, home/away context, rotation numbers, `statsperform_id`) | MLB 82 + EPL 20 active fixtures |
+| 2 | OddsPapi `GET /markets?sportId=<id>` then `GET /fixtures?sportId=<id>&startTimeFrom=now−6h` per configured sport | `MarketDict` (outcome → market/handicap/period), `FixtureRegistry.add_oddspapi` (join on `externalProviders.opticoddsId`, else fuzzy), `note_bookmakers` (`participantsRotated`) | 1,223 baseball / 14,774 soccer fixtures; 149 / 1,940 carry `opticoddsId` |
+| 3 | SharpSports `GET /events?league=<abbr>&upcoming=true` per configured league | `SharpSportsNormalizer.remember_event` → `FixtureRegistry.add_sharpsports` (join on `oddsjamId == game_id`, else fuzzy) | MLB 347 events (308 joined), EPL 360 (30 joined — SharpSports lists the whole season) |
+| report | `report["unresolved_fuzzy"]`, `report["fixtures"]`, per-league counts | logged; not persisted yet **[GAP]** | — |
+
+Streams after bootstrap: OpticOdds `GET /stream/odds/{sport}` (≤ 5 `sportsbook` per connection, `include_fixture_updates` not enabled), OddsPapi WS login with `channels=[odds, bookmakers, fixtures]` (`fixtures` payloads refresh the registry via `add_oddspapi`), SharpSports `GET /prices?league=` polled every `--poll` seconds (default 30). Live totals for the 75 s run: 381,188 canonical quotes (OddsPapi 183,754 · OpticOdds 124,002 · SharpSports 73,432), 1,311,005 order-book levels, 105,128 raw messages, 0 normalization errors.
+
+Universe configuration is a dict `sport → (opticodds league ids, oddspapi sportId, sharpsports league abbrs)`; the OpticOdds and SharpSports league lists are zipped positionally, so they must be kept in the same order. Planned: derive the universe from the `leagues` dimension (§3.3) instead of code.
+
