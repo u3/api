@@ -39,7 +39,7 @@ BOOKS: dict[str, dict[str, list[str]]] = {
     "novig": {"opticodds": ["novig"], "oddspapi": ["novig"], "sharpsports": []},
     "prophetx": {"opticodds": ["prophet_x"], "oddspapi": ["prophetx"], "sharpsports": []},
     "sporttrade": {"opticodds": ["sporttrade"], "oddspapi": ["sporttrade"], "sharpsports": ["st", "sporttrade"]},
-    "betfair_exchange": {"opticodds": ["betfair_exchange"], "oddspapi": ["betfair"], "sharpsports": []},
+    "betfair_exchange": {"opticodds": ["betfair_exchange"], "oddspapi": ["betfair-ex"], "sharpsports": []},
     "betfair_exchange_lay": {"opticodds": ["betfair_exchange_lay_"], "oddspapi": [], "sharpsports": []},
     "prizepicks": {"opticodds": ["prizepicks"], "oddspapi": ["prizepicks"], "sharpsports": ["pp", "prizepicks"]},
     "underdog": {"opticodds": ["underdog_fantasy_2_pick_"], "oddspapi": ["underdog"], "sharpsports": ["ud", "underdog"]},

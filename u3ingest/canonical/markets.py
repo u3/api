@@ -65,7 +65,7 @@ def canon_market_from_name(name: str) -> tuple[str, str]:
 
 
 _OP_TYPE = {"moneyline": "moneyline", "1x2": "3way", "spreads": "spread", "totals": "total", "teamtotals-team1": "team_total", "teamtotals-team2": "team_total"}
-_OP_PERIOD = {"result": "full", "regular-time": "reg", "regular_time": "reg", "1st-half": "1h", "2nd-half": "2h", "1st-quarter": "1q", "2nd-quarter": "2q",
+_OP_PERIOD = {"result": "full", "fulltime": "full", "full-time": "full", "regulartime": "reg", "regulation": "reg", "1h": "1h", "2h": "2h", "h1": "1h", "h2": "2h", "q1": "1q", "q2": "2q", "q3": "3q", "q4": "4q", "p1": "1p", "p2": "2p", "p3": "3p", "set1": "set1", "set2": "set2", "ot": "ot", "overtime": "ot", "regular-time": "reg", "regular_time": "reg", "1st-half": "1h", "2nd-half": "2h", "1st-quarter": "1q", "2nd-quarter": "2q",
               "3rd-quarter": "3q", "4th-quarter": "4q", "1st-period": "1p", "2nd-period": "2p", "3rd-period": "3p", "1st-5-innings": "f5i", "1st-inning": "1i"}
 
 

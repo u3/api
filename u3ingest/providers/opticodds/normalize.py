@@ -12,6 +12,12 @@ from u3ingest.canonical.models import OrderBookLevel, Quote, american_to_decimal
 from u3ingest.mapping.registry import BookRegistry, FixtureRegistry
 
 
+def _is_soccer(od: dict[str, Any]) -> bool:
+    sp = od.get("sport")
+    sp = (sp.get("id") or sp.get("name")) if isinstance(sp, dict) else sp
+    return str(sp or "").lower() in ("soccer", "football_soccer")
+
+
 class OpticOddsNormalizer:
     def __init__(self, books: BookRegistry, fixtures: FixtureRegistry) -> None:
         self.books, self.fixtures = books, fixtures
@@ -55,6 +61,8 @@ class OpticOddsNormalizer:
         recv = recv_ns or time.time_ns()
         ctx = self._fx_ctx.get(fixture_id, {})
         market, period = canon_market_from_name(od.get("market") or od.get("market_id") or "")
+        if market == "moneyline" and _is_soccer(od):
+            market = "3way"  # soccer moneyline carries a Draw selection: align with OddsPapi 1x2 / SharpSports 3-way
         line = od.get("points")
         sel_raw = od.get("selection") or od.get("name") or ""
         if od.get("selection_line") in ("over", "under"):
@@ -80,7 +88,7 @@ class OpticOddsNormalizer:
         for i, lvl in enumerate(od.get("order_book") or []):
             if isinstance(lvl, (list, tuple)) and len(lvl) >= 2:
                 obs.append(OrderBookLevel(recv, "opticodds", book, canon_fx, market, period, sel, str((od.get("source_ids") or {}).get("market_id") or ""),
-                                          "back", i, float(lvl[0]), float(lvl[1]), src_ms, od.get("id") or ""))
+                                          "back", i, float(american_to_decimal(lvl[0]) or lvl[0]), float(lvl[1]), src_ms, od.get("id") or ""))
         return q, obs
 
     @staticmethod
