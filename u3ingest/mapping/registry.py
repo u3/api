@@ -19,7 +19,7 @@ from u3ingest.canonical.models import FixtureRef
 
 # canonical_id -> {provider: [provider slugs/names (lowercase)]}
 BOOKS: dict[str, dict[str, list[str]]] = {
-    "pinnacle": {"opticodds": ["pinnacle", "ps3838", "ps4848"], "oddspapi": ["pinnacle"], "sharpsports": []},
+    "pinnacle": {"opticodds": ["pinnacle", "ps3838", "ps4848"], "oddspapi": ["pinnacle"], "sharpsports": ["pn", "pinnacle"]},
     "draftkings": {"opticodds": ["draftkings"], "oddspapi": ["draftkings"], "sharpsports": ["dk", "draftkings"]},
     "fanduel": {"opticodds": ["fanduel"], "oddspapi": ["fanduel"], "sharpsports": ["fd", "fanduel"]},
     "betmgm": {"opticodds": ["betmgm"], "oddspapi": ["betmgm"], "sharpsports": ["mg", "betmgm"]},

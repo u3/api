@@ -123,6 +123,28 @@ async def run_snapshot(a: argparse.Namespace) -> None:
         await arch.close()
 
 
+async def run_pipeline(a: argparse.Namespace) -> None:
+    import json
+
+    from u3ingest.pipeline import DEFAULT_UNIVERSE, Pipeline
+
+    st = get_settings()
+    universe = {k: v for k, v in DEFAULT_UNIVERSE.items() if not a.sports or k in _csv(a.sports)}
+    ch = None
+    if st.clickhouse_url:
+        from u3ingest.sinks.clickhouse import ClickHouseSink
+
+        ch = ClickHouseSink(st.clickhouse_url)
+        if a.apply_schema:
+            ch.apply_schema()
+    p = Pipeline(st, universe=universe, books_oo=_csv(a.books_opticodds) or None, books_op=_csv(a.books_oddspapi) or None, sharpsports_poll_s=a.poll, clickhouse=ch)
+    report = await p.bootstrap()
+    log.info("bootstrap report", report=json.dumps(report)[:2000])
+    stats = await p.run(a.seconds or None, opticodds=not a.no_opticodds, oddspapi=not a.no_oddspapi, sharpsports=not a.no_sharpsports)
+    log.info("pipeline done", quotes=stats.quotes, levels=stats.levels, raw=stats.raw, errors=stats.errors, by_provider=stats.by_provider,
+             unknown_books=dict(p.books.unknown), unresolved_fixtures=len(p.fixtures.unresolved))
+
+
 def main(argv: list[str] | None = None) -> int:
     structlog.configure(processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.add_log_level, structlog.processors.KeyValueRenderer()])
     ap = argparse.ArgumentParser(prog="u3-ingest")
@@ -134,6 +156,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bookmakers"); p.add_argument("--receive-type", default="json"); p.add_argument("--seconds", type=float, default=0); p.set_defaults(fn=run_oddspapi_ws)
     a2 = sub.add_parser("snapshot"); a2.add_argument("provider", choices=["opticodds", "oddspapi", "sharpsports"]); a2.add_argument("--league")
     a2.add_argument("--sports"); a2.add_argument("--sportsbooks"); a2.add_argument("--bookmakers"); a2.add_argument("--limit", type=int, default=50); a2.set_defaults(fn=run_snapshot)
+    a3 = sub.add_parser("run", help="bootstrap registries then run all connectors → raw archive (+ClickHouse if U3_CLICKHOUSE_URL)")
+    a3.add_argument("--sports", help="subset of baseball,basketball,football,hockey,soccer"); a3.add_argument("--books-opticodds"); a3.add_argument("--books-oddspapi")
+    a3.add_argument("--poll", type=float, default=30.0, help="SharpSports /prices poll interval seconds"); a3.add_argument("--seconds", type=float, default=0)
+    a3.add_argument("--no-opticodds", action="store_true"); a3.add_argument("--no-oddspapi", action="store_true"); a3.add_argument("--no-sharpsports", action="store_true")
+    a3.add_argument("--apply-schema", action="store_true"); a3.set_defaults(fn=run_pipeline)
     a = ap.parse_args(argv)
 
     async def runner() -> None:
