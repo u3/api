@@ -23,3 +23,5 @@ build/
 .venv/
 __pycache__/
 *.pyc
+data/
+*.jsonl.gz
