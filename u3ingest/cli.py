@@ -14,6 +14,7 @@ import asyncio
 import signal
 import sys
 import time
+from datetime import UTC, datetime
 
 import structlog
 
@@ -25,6 +26,11 @@ log = structlog.get_logger()
 
 def _csv(s: str | None) -> list[str]:
     return [x.strip() for x in s.split(",") if x.strip()] if s else []
+
+
+def _iso_dt(s: str) -> datetime:
+    dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 async def run_opticodds_sse(a: argparse.Namespace) -> None:
@@ -145,6 +151,25 @@ async def run_pipeline(a: argparse.Namespace) -> None:
              unknown_books=dict(p.books.unknown), unresolved_fixtures=len(p.fixtures.unresolved))
 
 
+async def run_replay(a: argparse.Namespace) -> None:
+    from u3ingest.replay import replay_with_stats, write_duckdb, write_parquet
+
+    batches, stats = replay_with_stats(a.root, _iso_dt(a.since), _iso_dt(a.until), set(_csv(a.providers)) or None, a.markets)
+    if a.out_format == "parquet":
+        write_parquet(a.out, batches)
+    else:
+        write_duckdb(a.out, batches)
+    print(
+        "replay summary:"
+        f" files_read={stats.files_read}"
+        f" messages={stats.messages}"
+        f" quotes={stats.quotes}"
+        f" levels={stats.levels}"
+        f" normalization_errors={stats.normalization_errors}"
+        f" unknown_books={stats.unknown_books}"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     structlog.configure(processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.add_log_level, structlog.processors.KeyValueRenderer()])
     ap = argparse.ArgumentParser(prog="u3-ingest")
@@ -161,6 +186,15 @@ def main(argv: list[str] | None = None) -> int:
     a3.add_argument("--poll", type=float, default=30.0, help="SharpSports /prices poll interval seconds"); a3.add_argument("--seconds", type=float, default=0)
     a3.add_argument("--no-opticodds", action="store_true"); a3.add_argument("--no-oddspapi", action="store_true"); a3.add_argument("--no-sharpsports", action="store_true")
     a3.add_argument("--apply-schema", action="store_true"); a3.set_defaults(fn=run_pipeline)
+    a4 = sub.add_parser("replay", help="rebuild canonical quotes/order_book_levels from raw archives")
+    a4.add_argument("--root", required=True)
+    a4.add_argument("--since", required=True, help="ISO timestamp (inclusive)")
+    a4.add_argument("--until", required=True, help="ISO timestamp (inclusive)")
+    a4.add_argument("--providers", help="comma-separated providers: opticodds,oddspapi,sharpsports")
+    a4.add_argument("--markets", help="OddsPapi /markets JSON file")
+    a4.add_argument("--out", required=True)
+    a4.add_argument("--out-format", choices=["parquet", "duckdb"], required=True)
+    a4.set_defaults(fn=run_replay)
     a = ap.parse_args(argv)
 
     async def runner() -> None:
