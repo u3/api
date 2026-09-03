@@ -91,7 +91,7 @@ Facts and rules:
 |---|---|---|---|---|
 | 1 | OddsPapi `externalProviders.opticoddsId` **==** OpticOdds `fixture.id` | exact | MLB 40/40, EPL 8/8, NCAAF 114/125 in window; bootstrap run: 149/1,223 baseball and 1,940/14,774 soccer OddsPapi fixtures carry an `opticoddsId` (OpticOdds only lists fixtures with odds; OddsPapi lists far more) | **[CODE]** `FixtureRegistry.add_oddspapi` |
 | 2 | SharpSports `Event.oddsjamId` **==** OpticOdds `fixture.game_id` | exact | MLB 37/40; NFL 100/100 of the OpticOdds NFL sample | **[CODE]** `FixtureRegistry.add_sharpsports` (`by_game_id`) |
-| 3 | normalized home/away names + start time within ±15 min, same league key, else team-pair only | fuzzy | EPL 8/8, NCAAF 73/87, MLB 3/40 | **[CODE]** `FixtureRegistry._fuzzy` (`norm_team` strips `fc|sc|cf|afc|the|club`, NFKD-folds, keeps `[a-z0-9]`) |
+| 3 | normalized home/away names + start time within ±15 min, same league key, else team-pair only | fuzzy | EPL 8/8, NCAAF 73/87, MLB 3/40 | **[CODE]** `FixtureRegistry._fuzzy` (`norm_team` strips `fc\|sc\|cf\|afc\|the\|club`, NFKD-folds, keeps `[a-z0-9]`) |
 | 4 | Rotation numbers: OpticOdds `{home_rotation_number, away_rotation_number}` vs OddsPapi `{participant1RotNr, participant2RotNr}` as an **unordered pair** on the same calendar day | exact when both present | OpticOdds 103/173; OddsPapi present for EPL/NBA samples; OddsPapi Argentine soccer values like `210458/210457` are not US rotations **[DOC]** | **[GAP]** not implemented; planned as a tie-breaker between steps 1 and 3 |
 | 5 | Sportsbook-native ids: OddsPapi `externalProviders.pinnacleId` / `bookmakers.pinnacle.bookmakerFixtureId` vs SharpSports `Price.bookIds.eventId` for book `pn` (`1634945554`); OddsPapi `bookmakers.kalshi.bookmakerFixtureId` vs OpticOdds `source_ids.market_id` ticker prefix vs SharpSports `bookIds` for `kl` (`eventId` `26SEP041905BOSBAL`, `marketId` `KXMLBGAME`, `selectionId` `BOSY`); OddsPapi `bookmakers.draftkings.bookmakerFixtureId` (`34572328`) vs SharpSports `bookIds.eventId` for `dk` (`30589142` style) | exact per book | format-compatible; not yet measured | **[GAP]** candidate keys, unverified |
 | 6 | Betradar / Sportradar / Stats Perform | none | OddsPapi `betradarId` (int) and SharpSports `sportradarId` (UUID) are different id spaces; OpticOdds exposes only `statsperform_id`; no provider exposes both → **not joinable today** | **[GAP]** requires an external crosswalk |
@@ -228,9 +228,9 @@ How each provider names markets:
 
 | Provider | Market identity | Period encoding | Line | Player / team subject | Alternate lines |
 |---|---|---|---|---|---|
-| OpticOdds | `market_id` snake slug + `market` display name (`moneyline`/"Moneyline", `point_spread`, `run_line`, `total_runs`, `total_goals`, `asian_handicap`, `team_total`, `player_passing_yards`, `player_bases`, `player_home_runs_yes_no`, `both_teams_to_score`, `correct_score`, `1st_half_winning_margin`); `market_type_id` → `GET /market-types` (43 types: `moneyline`(7), `moneyline_3way`(8), `spread`(20), `total`(31), `team_total`(27), `player_total`(15), `player_yes_no`(19), `yes_no`(34), `correct_score`(6), `asian_handicap`(1), `asian_total`(3), …) with selection templates (`"Over {points}"`, `"{home_team_name} {points}"`) | prefix in the slug: `1st_half_`, `2nd_half_`, `1st_quarter_`, `1st_period_`, `1st_inning_`, `1st_5_innings_`, `1st_7_innings_`, `2nd_set_`; suffix `_incl_ot_` / `(Incl. OT)` in names **[DOC]** | `points` (numeric, per selection, sign from the selection's view: `ipswich_town_fc_+1_5`), `selection_points` on SSE | `player_id`, `team_id` on the odd; `selection` = player/team name; `selection_line` ∈ `over|under|yes|no|odd|even|exact|"3:1"|"2+"|null` (55 distinct values in one EPL fixture **[LIVE]**) | every line is its own odd; `is_main` marks the book's main; `grouping_key` pairs sides (`default`, `default:2.5`, `brice_turang:2.5`, `ipswich_town_fc`) |
+| OpticOdds | `market_id` snake slug + `market` display name (`moneyline`/"Moneyline", `point_spread`, `run_line`, `total_runs`, `total_goals`, `asian_handicap`, `team_total`, `player_passing_yards`, `player_bases`, `player_home_runs_yes_no`, `both_teams_to_score`, `correct_score`, `1st_half_winning_margin`); `market_type_id` → `GET /market-types` (43 types: `moneyline`(7), `moneyline_3way`(8), `spread`(20), `total`(31), `team_total`(27), `player_total`(15), `player_yes_no`(19), `yes_no`(34), `correct_score`(6), `asian_handicap`(1), `asian_total`(3), …) with selection templates (`"Over {points}"`, `"{home_team_name} {points}"`) | prefix in the slug: `1st_half_`, `2nd_half_`, `1st_quarter_`, `1st_period_`, `1st_inning_`, `1st_5_innings_`, `1st_7_innings_`, `2nd_set_`; suffix `_incl_ot_` / `(Incl. OT)` in names **[DOC]** | `points` (numeric, per selection, sign from the selection's view: `ipswich_town_fc_+1_5`), `selection_points` on SSE | `player_id`, `team_id` on the odd; `selection` = player/team name; `selection_line` ∈ `over\|under\|yes\|no\|odd\|even\|exact\|"3:1"\|"2+"\|null` (55 distinct values in one EPL fixture **[LIVE]**) | every line is its own odd; `is_main` marks the book's main; `grouping_key` pairs sides (`default`, `default:2.5`, `brice_turang:2.5`, `ipswich_town_fc`) |
 | OddsPapi | `marketId` int (== lowest `outcomeId`); `marketType` open vocabulary (`1x2, moneyline, spreads, spreads-european, totals, teamtotals-team1, teamtotals-team2, bothteamsscore, drawnobet, oddeven, correctscore, winningmargin, doublechance, firstgoal, lastgoal, totals-corners, spread-corners, totals-bookings, playertotals-tackles, playertotals-shots, playertotals-shotsongoal, playertotals-goals, playertotals-assists, toscore-team1, cleansheet-team1, wintonil-team1, …` — 1,122 markets for soccer, 4,902 for basketball); `marketName`/`marketNameShort` translated | `period` ∈ `result` (incl. OT), `fulltime` (regulation), `p1`, `p2`, … , `null` (cross-period markets such as `toscoreinbh-team1`) | `handicap` on the **market** (each line = separate `marketId`; `0.0` when lineless); spread sign is **for participant 1** (outcomes `'1'`/`'2'`) → flip for participant 2 **[CODE]** | `playerProp: true`; `playerId` in the `oddsId` (4th segment); `marketLength` = outcome count | one `marketId` per line; `mainLine` per quote (nullable/absent) |
-| SharpSports | `Market.id` `MKT_…` + `Market.name` grammar `[SEGMENT] (Moneyline|Spread|Total|3-way | [Future ] Game Prop|Team Prop|Player Prop|Match Prop <tail>)`; `type` ∈ `straight|prop`; `proposition` ∈ `moneyline|spread|total|3-way` for straights (free text for props); `player|team|future` bools; `segment{id,name}`; `metric{id,name}`; cross-vendor `oddsjamId` (`moneyline`, `point_spread`, `player_home_runs`), `sportradarId` (`sr:market:1` live MLB moneyline; `sr:market:219`, `sr:market:223`, `sr:market:9003` in docs), `theOddsApiId` (`h2h`, `batter_home_runs`) | `segmentId` (95 segments **[LIVE]**: `SEGM_M`, `SEGM_1H`, `SEGM_2H`, `SEGM_1P..3P`, `SEGM_1Q..4Q`, `SEGM_1I..9I`, `SEGM_F2I..F8I`, `SEGM_S1..S5`, `SEGM_S1G1..S5G12`, `SEGM_R1..R4`); name prefix (`1st Half Spread`); 6 Underdog MLB names infix the segment (`Player Prop 1st Inning Hits`) | `Price.line` float per (selection, book, line); `0.0` = no line in `/prices`, `null` in `MarketSelection.prices` | `MarketOffer.player{id,fullName}` / `team{id,fullName}`; `MarketSelection.positionId` `TEAM_`/`PLYR_` or null; `propDetails{player,playerId,team,teamId,matchupSpecial,metricSpecial,metricSpecialId,future}` | all lines in `books[].prices[]` with `main` bool; `lineAvailability{abbr:[lines]}` |
+| SharpSports | `Market.id` `MKT_…` + `Market.name` grammar `[SEGMENT] (Moneyline\|Spread\|Total\|3-way \| [Future ] Game Prop\|Team Prop\|Player Prop\|Match Prop <tail>)`; `type` ∈ `straight\|prop`; `proposition` ∈ `moneyline\|spread\|total\|3-way` for straights (free text for props); `player\|team\|future` bools; `segment{id,name}`; `metric{id,name}`; cross-vendor `oddsjamId` (`moneyline`, `point_spread`, `player_home_runs`), `sportradarId` (`sr:market:1` live MLB moneyline; `sr:market:219`, `sr:market:223`, `sr:market:9003` in docs), `theOddsApiId` (`h2h`, `batter_home_runs`) | `segmentId` (95 segments **[LIVE]**: `SEGM_M`, `SEGM_1H`, `SEGM_2H`, `SEGM_1P..3P`, `SEGM_1Q..4Q`, `SEGM_1I..9I`, `SEGM_F2I..F8I`, `SEGM_S1..S5`, `SEGM_S1G1..S5G12`, `SEGM_R1..R4`); name prefix (`1st Half Spread`); 6 Underdog MLB names infix the segment (`Player Prop 1st Inning Hits`) | `Price.line` float per (selection, book, line); `0.0` = no line in `/prices`, `null` in `MarketSelection.prices` | `MarketOffer.player{id,fullName}` / `team{id,fullName}`; `MarketSelection.positionId` `TEAM_`/`PLYR_` or null; `propDetails{player,playerId,team,teamId,matchupSpecial,metricSpecial,metricSpecialId,future}` | all lines in `books[].prices[]` with `main` bool; `lineAvailability{abbr:[lines]}` |
 
 Canonical taxonomy rows (each provider's naming for the same canonical market):
 
@@ -238,7 +238,7 @@ Canonical taxonomy rows (each provider's naming for the same canonical market):
 |---|---|---|---|---|
 | `moneyline` (`full`) | `moneyline` (2-way; MLB/NFL/NBA/NHL) | `moneyline` (`result`), e.g. 111 → 111 `'1'`, 112 `'2'` | `Moneyline` (`moneyline`) | none |
 | `3way` (`full`) | `moneyline` on soccer carries a `Draw` selection (Pinnacle/DK/FD/Kalshi in the EPL sample); `moneyline_3-way` suffix for period markets (`1st_half_moneyline_3-way`, `total_runs_3-way`) | `1x2` (`fulltime` 101 → `'1','X','2'`; basketball 113 = regulation) | `3-way` (`3-way`), positions team / `Draw` | none |
-| `spread` (`full`) | `point_spread`, `run_line`, `puck_line`, `asian_handicap`, `goal_spread_3-way` | `spreads` (2-way, `handicap` for p1), `spreads-european` (3-way) | `Spread` (`spread`), position = team, `line` position-relative | OpticOdds `points` (per side), OddsPapi `handicap` (flip for side 2), SharpSports `line` (per side) |
+| `spread` (`full`) | `point_spread`, `run_line`, `asian_handicap`, `goal_spread_3-way` (3-way) | `spreads` (2-way, `handicap` for p1), `spreads-european` (3-way) | `Spread` (`spread`), position = team, `line` position-relative | OpticOdds `points` (per side), OddsPapi `handicap` (flip for side 2), SharpSports `line` (per side) |
 | `total` (`full`) | `total_points`, `total_runs`, `total_goals`, `asian_total_goals` | `totals` (`handicap` = line; outcomes `Over`/`Under`) | `Total` (`total`), positions `Over`/`Under` | line value |
 | `team_total` (`full`) | `team_total`, `team_total_hits`, `team_total_exact` (team via `team_id` / `selection`) | `teamtotals-team1` / `teamtotals-team2` | `Team Prop Total <Metric>` (`total`), `marketOffers[].team` | line value |
 | period variants | `1st_half_moneyline`, `1st_quarter_point_spread`, `1st_inning_total_runs`, `1st_5_innings_run_line`, `2nd_set_moneyline` | `period` = `p1`, `p2`, … (`First Half Result` = `1x2`/`p1`) | `1st Half Moneyline`, `1st Quarter Spread`, `1st Inning Total`, `1st 5 Innings Total`, `Set 1 Moneyline` | as above |
@@ -254,15 +254,15 @@ Period mapping (canonical `period` per provider encoding):
 
 | Canonical `period` | OpticOdds market slug prefix / name | OddsPapi `Market.period` (interpret with `sport.sportId`, `expectedPeriods`, `periodLength`) | SharpSports segment (`segmentId` / name prefix) | Sports |
 |---|---|---|---|---|
-| `full` (incl. OT) | no prefix; names may carry `(Incl. OT)` | `result` ("Winner (incl. overtime)", basketball 111) | `SEGM_M` / no prefix (`Bet.segmentDetail` `Including Overtime` only on bets) | all |
-| `reg` (regulation) | `_regular_time` / "(Reg. Time)" names where offered | `fulltime` (basketball 113 "Regular Time Result"; soccer 101) | — | basketball, hockey, soccer |
+| `full` (incl. OT) | no prefix; OT-inclusive variants carry the `_incl_ot_` slug suffix / `(Incl. OT)` name suffix (`4th_quarter_moneyline_incl_ot_`) **[DOC]** | `result` ("Winner (incl. overtime)", basketball 111) | `SEGM_M` / no prefix (`Bet.segmentDetail` `Including Overtime` only on bets) | all |
+| `reg` (regulation) | the un-suffixed period market where an `_incl_ot_` twin exists **[DOC]** | `fulltime` (basketball 113 "Regular Time Result"; soccer 101) | — | basketball, hockey, soccer |
 | `1h` / `2h` | `1st_half_`, `2nd_half_` | `p1`, `p2` **for soccer** (soccer `expectedPeriods` 2, `periodLength` 45) | `SEGM_1H` / `SEGM_2H` (`1st Half …`) | soccer, basketball, football |
 | `1q`..`4q` | `1st_quarter_` … `4th_quarter_` | `p1`..`p4` when `expectedPeriods` = 4 and `periodLength` = 12/15 | `SEGM_1Q`..`SEGM_4Q` | basketball, football |
 | `1p`..`3p` | `1st_period_` … `3rd_period_` | `p1`..`p3` when `expectedPeriods` = 3, `periodLength` = 20 | `SEGM_1P`..`SEGM_3P` | hockey |
 | `1i`..`9i`, `f3i`, `f5i`, `f7i` | `1st_inning_`, `1st_3_innings_`, `1st_5_innings_`, `1st_7_innings_` (`1st_half_` also used for baseball first-5) | `p1`.. (innings) and combined keys `p1+p2+p3+p4+p5` **[DOC]** | `SEGM_1I`..`SEGM_9I`, `SEGM_F2I`..`SEGM_F8I` | baseball |
-| `set1`..`set5`, games | `1st_set_`, `2nd_set_` | `p1`.. (sets); `p1g1`..`p5g13` sub-periods | `SEGM_S1`..`SEGM_S5`, `SEGM_S1G1`..`SEGM_S5G12` | tennis |
-| rounds | golf `end_of_round_n_leader` names | — | `SEGM_R1`..`SEGM_R4` | golf |
-| `ot` | `overtime_` | `overtime`, `fulltime+overtime`, `p4+overtime` | — | hockey, basketball |
+| `set1`..`set5`, games | `2nd_set_moneyline` (docs example) | `p1`.. (sets); `p1g1`..`p5g13` sub-periods | `SEGM_S1`..`SEGM_S5`, `SEGM_S1G1`..`SEGM_S5G12` | tennis |
+| rounds | golf `End Of Round N Leader` market names **[DOC]** | — | `SEGM_R1`..`SEGM_R4` | golf |
+| `ot` | (not observed) | `overtime`, `fulltime+overtime`, `p4+overtime` **[DOC]** | — | hockey, basketball |
 
 **[CODE]** `split_period` recognizes `1st/2nd half`, `1st..4th quarter`, `1st..3rd period`, `1st 5/3/7 innings`, `1st inning`, `1st/2nd set`, `(reg` and `regulation time`; OddsPapi periods go through `_OP_PERIOD` (see [GAP 5]).
 
@@ -292,14 +292,14 @@ Mapping functions **[CODE]**: `canon_market_from_name(name)` (OpticOdds `market`
 |---|---|---|
 | OpticOdds | odd `id` = `{game_id}:{sportsbook_id}:{market_id}:{normalized_selection[_line_points]}` (REST rows use display-cased sportsbook in docs; live REST and SSE both lowercase); fields `selection`, `normalized_selection`, `selection_line`, `points`, `player_id`, `team_id`, `grouping_key`; docs: the id "is not guaranteed to be of any specific format" → build your own composite key | `42573-28098-2026-09-04:pinnacle:moneyline:ipswich_town_fc`; `…:kalshi:1st_half_total_goals:over_2_5` (`selection: ""`, `selection_line: "over"`, `points: 2.5`); `…:draftkings:player_outside_box_shots_on_target:abdul_fatawu_over_1_5` (`player_id: 37115F112AA7`); `…:draftkings:5th_inning_correct_score:st_louis_cardinals_4_3` (`selection_line: "4:3"`) |
 | OddsPapi | `oddsId` = `{fixtureId}:{bookmaker}:{outcomeId}:{playerId}`; book-independent selection key `{fixtureId}:{outcomeId}:{playerId}`; `outcomeName` from `/markets` (`'1'`, `'X'`, `'2'`, `Over`, `Under`, `Yes`, `No`, `Odd`, `Even`, `No Goal`); `participantsRotated` per book flips 1/2 | `id1000001772221244:pinnacle:101030:0`, `id1000001772221240:3et:102732:103335` (player 103335); Kalshi rows add `meta.bookmakerLayOutcomeId` (`KXEPLTOTAL-26SEP04IPSLFC-3:no`) |
-| SharpSports | `MarketSelection.id` `MRKT_…` = one side of a `MarketOffer` (`MKTO_…`) = `(event, market, segment, proposition, position[, player|team])`; the line is **not** part of identity — `(MRKT_, book abbr, line)` identifies a quote | `MRKT_3510f6e1371c414491926c4a84e2ed68` position `Ipswich Town FC` (`positionId TEAM_fa74…`); `Over`/`Under` (`positionId null`); `Draw`; `Yes`/`No`; `Liverpool FC 3-1`; `4+` |
+| SharpSports | `MarketSelection.id` `MRKT_…` = one side of a `MarketOffer` (`MKTO_…`) = `(event, market, segment, proposition, position[, player\|team])`; the line is **not** part of identity — `(MRKT_, book abbr, line)` identifies a quote | `MRKT_3510f6e1371c414491926c4a84e2ed68` position `Ipswich Town FC` (`positionId TEAM_fa74…`); `Over`/`Under` (`positionId null`); `Draw`; `Yes`/`No`; `Liverpool FC 3-1`; `4+` |
 
 Canonical selection key **[CODE]** (`canon_selection`): `home | away | draw | over | under | yes | no | team:<id> | player:<id>[:over|:under|:<slug>] | other:<slug>`.
 
 | Canonical `selection` | OpticOdds derivation | OddsPapi derivation | SharpSports derivation |
 |---|---|---|---|
 | `home` / `away` | `team_id` == fixture `home_competitors[0].id` / `away_competitors[0].id`; else `selection` text == `home_team_display` / `away_team_display` (trailing `±n.n` stripped) | `outcomeName` `'1'` → `home`, `'2'` → `away`, swapped when `bookmakers[bk].participantsRotated` | `position` == `contestantHome.fullName` / `contestantAway.fullName`, or `positionId` == contestant `id` |
-| `draw` | `selection` ∈ `Draw|X|Tie` | `outcomeName` `'X'` | `position` `Draw` |
+| `draw` | `selection` ∈ `Draw\|X\|Tie` | `outcomeName` `'X'` | `position` `Draw` |
 | `over` / `under` | `selection_line` `over`/`under` (`selection` may be `""`) | `outcomeName` `Over`/`Under` | `position` `Over`/`Under` |
 | `yes` / `no` | **[GAP]** `selection_line` `yes`/`no` is not consumed by the OpticOdds normalizer (falls through to `player:<id>:<slug(name)>` or `other:`) | `outcomeName` `Yes`/`No` | `position` `Yes`/`No` |
 | `team:<id>:over` (team totals) | `team:<OpticOdds team_id>:over` | `team:home:over` / `team:away:over` (from `marketType` suffix `team1`/`team2`) | `team:<TEAM_id>:over` (from `marketOffers[].team.id`) — **three different id spaces [GAP]** |
@@ -345,7 +345,7 @@ Canonical: `quotes.is_main Nullable(Bool)` **[CODE]**.
 | Provider | Signal | Where | Semantics |
 |---|---|---|---|
 | OpticOdds | `locked-odds` SSE event | stream | selection suspended/removed **with its last price**; REST `/fixtures/odds` simply omits suspended odds. `quotes.event_kind = 'lock'`, `active = false` **[CODE]** |
-| OpticOdds | `fixture-status` SSE event (`include_fixture_updates=true`) | stream | `old_status → new_status` ∈ `live|half|unplayed|completed|cancelled|suspended|delayed` |
+| OpticOdds | `fixture-status` SSE event (`include_fixture_updates=true`) | stream | `old_status → new_status` ∈ `live\|half\|unplayed\|completed\|cancelled\|suspended\|delayed` |
 | OpticOdds | `GET /sportsbooks/last-polled` | REST | `{league{id,name,numerical_id}, fixture_id, sportsbooks[{id,name,timestamp (unix s)}]}` — per-book polling heartbeat (`sporttrade` timestamp 1779664780 vs `draftkings_predictions` 1788420267 ⇒ 100 days stale) |
 | OddsPapi | `OddQuote.active` (required), `marketActive` (nullable/absent) | every quote | selection / whole-market availability; `quotes.active = active and marketActive is not False` **[CODE]** |
 | OddsPapi | `BookmakerFixtureMeta.hasOdds`, `staleOdds` ("Critical for trading"), `suspended`, `participantsRotated`, `updatedAt` | `bookmakers` map on `/fixtures/odds*` and WS `bookmakers` channel | per (fixture, book) gate; **[CODE]** only `participantsRotated` is consumed (`OddsPapiNormalizer.rotated`); `staleOdds`/`suspended`/`hasOdds` are archived raw but not applied **[GAP]** |
@@ -362,8 +362,8 @@ Trading gate to implement (OddsPapi wording): `active ∧ marketActive≠false �
 | OpticOdds | `limits` | `{"max": 4500}` (Pinnacle ML), `{"max": 360}` (Kalshi = top-of-book size), `{"max": 23000}` (BetOnline); docs prose also shows `{"max_stake": 1000}` | stake in the book's base currency (undocumented) | `quotes.limit_max = limits.max or limits.max_stake` **[CODE]** |
 | OpticOdds | `order_book` | `[[price, size], …]` one-sided back ladder in the requested odds format, best first, worse deeper (Kalshi `[[424,360],[396,399.57],…,[-3476,246.38]]`; Polymarket `[[-9900,62.37]]`; Prophet X `[[1274,38.46]]`; Novig `[[-2400,192]]`) | size in the exchange's base currency (USD) | `order_book_levels` rows `side='back'`, `level=i`, `price=lvl[0]` (**note: stored in the native odds format, i.e. American here, although the column comment says decimal [GAP]**), `size=lvl[1]` |
 | OpticOdds | `source_ids` | Kalshi `{market_id: "KXMLBHR-26SEP032140ATHSEA-SEACRALEIGH29-1", selection_id: "yes"}`; Polymarket `{selection_id: "<77-digit clobTokenId>"}`; Prophet X `{event_id, selection_id}`; Novig `{event_id, market_id, selection_id}` (UUIDs); BetOnline `{event_id}` | venue-native routing ids | `order_book_levels.venue_market_id = source_ids.market_id` (empty for Polymarket/Prophet X rows **[GAP]**); full object kept in `quotes.extra.source_ids` |
-| OpticOdds (non-sport) | `outcomes.{yes,no}.{best_bid,best_ask,spread,last_trade_price,tick_size,bids[{price,size}],asks[{price,size}]}` | full two-sided book, prices 0–1 (0 = "not available" sentinel), sizes in contracts (fractional) | contracts | `OrderBookLevel(side='bid'|'ask', price=0..1)` via `pm_snapshot_levels` **[CODE]** |
-| OddsPapi | `limit` (number, nullable) + `Bookmaker.limitCurrency` | Pinnacle `4104.54`… per side (`19354` on a −645 favourite vs `3000` on the dog in docs); Kalshi `4104.54`; null for DK/FD | `limitCurrency` USD (`pinnacle`, `kalshi`, `polymarket`, `circasports`, `sx.bet`, `paradisewager`, `vertex`), EUR (`3et`, `betfair-ex`, `punter.io`, `sharpbet`), null otherwise → normalize with `/currencies` (USD base, inferred) | `quotes.limit_max = limit` (currency not stored **[GAP]**) |
+| OpticOdds (non-sport) | `outcomes.{yes,no}.{best_bid,best_ask,spread,last_trade_price,tick_size,bids[{price,size}],asks[{price,size}]}` | full two-sided book, prices 0–1 (0 = "not available" sentinel), sizes in contracts (fractional) | contracts | `OrderBookLevel(side='bid'\|'ask', price=0..1)` via `pm_snapshot_levels` **[CODE]** |
+| OddsPapi | `limit` (number, nullable) + `Bookmaker.limitCurrency` | Pinnacle `50.0`/`83.0` on EPL totals, `3260.0`/`1500.0` on the 1x2 (`19354` on a −645 favourite vs `3000` on the dog in docs); Kalshi `4104.54`/`2126.25`; absent for DraftKings/FanDuel rows | `limitCurrency` USD (`pinnacle`, `kalshi`, `polymarket`, `circasports`, `sx.bet`, `paradisewager`, `vertex`), EUR (`3et`, `betfair-ex`, `punter.io`, `sharpbet`), null otherwise → normalize with `/currencies` (USD base, inferred) | `quotes.limit_max = limit` (currency not stored **[GAP]**) |
 | OddsPapi | `meta` (free-form JSON) | `kalshi`/`polymarket`: `{back:[{price,limit,cents,size}], lay:[…], bookmakerLayOutcomeId}`; `betfair-ex`: `{availableToBack:[{price,size}]}`; `sx.bet`: `{back:[{price,limit,cents}]}`; `cents = 1/price`, `limit = size × cents` (USD notional) | decimal price; `size` contracts; `limit` USD | `order_book_levels` rows for `meta.back[]` / `meta.lay[]` only (`price`, `size or limit`) **[CODE]**; `availableToBack` not parsed **[GAP]** |
 | SharpSports | — | no limits, no depth; `marketOfferVolume`/`marketSelectionVolume` (int, prediction-market books only: Kalshi `36527`) | contracts/volume | `quotes.limit_max = NULL`; volumes not stored **[GAP]** |
 
@@ -373,13 +373,13 @@ Trading gate to implement (OddsPapi wording): `active ∧ marketActive≠false �
 |---|---|---|---|---|
 | OpticOdds | book/poll | `timestamp` on every odd | float seconds (`1788419283.5209184`); historical `entries[].timestamp` int seconds | "when the price was posted"; batch events share one timestamp |
 | OpticOdds | stream | SSE `id:` / `entry_id` `<epoch_ms>-<seq>` (`1788420576710-0`) | ms | gateway emit order; **`last_entry_id` replay does not work** (four reconnect tests restarted at "now") **[LIVE]** |
-| OpticOdds | server | `ping` event `data: 2026-09-03T07:29:41Z` every ~5 s (8 in a 3,581-line capture) | s | clock-drift reference |
+| OpticOdds | server | `ping` event `data: 2026-09-03T07:29:41Z` (docs: every 5 s; 8 observed in the baseball capture; `retry: 5000` on every event) | s | clock-drift reference |
 | OpticOdds | PM stream | `timestamp_ns` (`1787680501517000000`, ms precision; Kalshi values unusable — 0/hour-rounded **[LIVE]**) | ns | book capture time |
 | OddsPapi | book | `bookmakerChangedAt` | epoch ms | bookmaker's own change time; absent for scraped books (many DK/FD rows) |
 | OddsPapi | gateway | `changedAt` (required) | epoch ms | gateway accept time; also the historical map key (as a string) |
 | OddsPapi | egress | WS envelope `ts` (= ms prefix of `entryId`) | epoch ms | emit time |
 | OddsPapi | schedule | `startTime` s; `trueStartTime`/`trueEndTime`/`scores.*.updatedAt`/`bookmakers.*.updatedAt` ISO µs | mixed | "schedule times are seconds, odds-update times are milliseconds" |
-| SharpSports | — | **none on `/prices` or `MarketSelection.prices`** | — | stamp at receive; historic timeseries carries `windowStartTime`/`windowEndTime` ISO with `consensus{open,close}` and `books[{id,abbr,name,open{line,odds,impliedProbability,marketOfferVolume,marketSelectionVolume},close{…}}]` (`rollup` `5m|15m|1h|4h|1d`; observed keys from `msel_ts_5m.json`) |
+| SharpSports | — | **none on `/prices` or `MarketSelection.prices`** | — | stamp at receive; historic timeseries carries `windowStartTime`/`windowEndTime` ISO with `consensus{open,close}` and `books[{id,abbr,name,open{line,odds,impliedProbability,marketOfferVolume,marketSelectionVolume},close{…}}]` (`rollup` `5m\|15m\|1h\|4h\|1d`; observed keys from `msel_ts_5m.json`) |
 
 Canonical columns **[CODE]**: `recv_ns` (our monotonic receive time, authoritative), `source_ts_ms` (OpticOdds `timestamp×1000`; OddsPapi `bookmakerChangedAt or changedAt`; SharpSports `NULL`), `gateway_ts_ms` (OddsPapi WS `ts` when known else `changedAt`; OpticOdds `NULL` **[GAP]** — the SSE `entry_id` ms prefix is not stored in `gateway_ts_ms`, only `provider_odd_id`).
 
@@ -428,12 +428,12 @@ State transitions the board must implement: OpticOdds main-line move without alt
 | `price_us` | `Nullable(Int32)` | §2.1 |
 | `is_main` | `Nullable(Bool)` | `is_main` / `mainLine` / `main` |
 | `active` | `Bool` | OpticOdds `event != locked-odds`; OddsPapi `active ∧ marketActive`; SharpSports always `true` |
-| `limit_max` | `Nullable(Float64)` | `limits.max|max_stake` / `limit` / NULL |
+| `limit_max` | `Nullable(Float64)` | `limits.max\|max_stake` / `limit` / NULL |
 | `source_ts_ms` | `Nullable(Int64)` | §2.6 |
 | `gateway_ts_ms` | `Nullable(Int64)` | §2.6 |
 | `provider_market` | `String` | OpticOdds `market`, OddsPapi `marketName` (or `str(marketId)`), SharpSports `Market.name` |
 | `provider_selection` | `String` | OpticOdds `selection`/`name`, OddsPapi `outcomeName`, SharpSports `position` |
-| `provider_odd_id` | `String` | OpticOdds odd `id`, OddsPapi `oddsId`, SharpSports `"<MRKT_id>|<abbr>|<line>"` |
+| `provider_odd_id` | `String` | OpticOdds odd `id`, OddsPapi `oddsId`, SharpSports `"<MRKT_id>\|<abbr>\|<line>"` |
 | `player_id` | `Nullable(String)` | **provider-native** player id |
 | `team_id` | `Nullable(String)` | **provider-native** team id |
 | `event_kind` | `LowCardinality(String)` | `update` / `lock` / `snapshot` |
@@ -452,7 +452,7 @@ Canonical Python records **[CODE]** (`u3ingest/canonical/models.py`): `Quote` (s
 
 ### 3.2 Raw archive layout (implemented)
 
-`u3ingest/sinks/raw.py`: `<U3_RAW_DIR>/<provider>/<stream>/dt=YYYY-MM-DD/hour=HH/<stream>-<process_start_ms>.jsonl.gz`; each line `{"recv_ns": int, "provider": str, "stream": str, "seq": int, "meta": {...}, "body": <provider payload>}`. Streams in use: `opticodds/sse-odds-<sport>`, `opticodds/sse-prediction-markets-<…>`, `oddspapi/ws-<channels>`, `<provider>/snapshot-<league|sports>`, `bootstrap/registries` (meta `{provider, endpoint, league|sportId}` for `/fixtures/active`, `/fixtures`, `/markets`, `/events`), `sharpsports/prices-<league>`. `u3ingest/sinks/gcs.py` uploads closed hourly files to `gs://<bucket>/raw/...` mirroring the local path (`.gcs_manifest.jsonl` records uploads; current hour skipped). `u3ingest/replay.py` rebuilds `quotes`/`order_book_levels` (Parquet/DuckDB) from the archive by merging files on `recv_ns` and re-running the bootstrap files first.
+`u3ingest/sinks/raw.py`: `<U3_RAW_DIR>/<provider>/<stream>/dt=YYYY-MM-DD/hour=HH/<stream>-<process_start_ms>.jsonl.gz`; each line `{"recv_ns": int, "provider": str, "stream": str, "seq": int, "meta": {...}, "body": <provider payload>}`. Streams in use: pipeline — `opticodds/sse-odds-<sport>`, `oddspapi/ws-odds`, `sharpsports/prices-poll`, `bootstrap/registries` (meta `{provider, endpoint, league|sportId}` for `/fixtures/active`, `/fixtures`, `/markets`, `/events`); CLI — `opticodds/sse-<stream>-<sport|all>` (e.g. `sse-prediction-markets-all`), `oddspapi/ws-<channels joined by '-'>`, `<provider>/snapshot-<league|sports|all>`. `u3ingest/sinks/gcs.py` uploads closed hourly files to `gs://<bucket>/raw/...` mirroring the local path (`.gcs_manifest.jsonl` records uploads; current hour skipped). `u3ingest/replay.py` rebuilds `quotes`/`order_book_levels` (Parquet/DuckDB) from the archive by merging files on `recv_ns` and re-running the bootstrap files first.
 
 Planned additions to `meta` per stream **[GAP]**: OpticOdds SSE `{event, id}` already; add the redacted request URL and `x-ratelimit-*` headers on REST snapshots; OddsPapi WS already stores `{channel, type, ts, entryId, raw_len}` plus control frames (`login_ok` without `apiKey`).
 
@@ -474,7 +474,24 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 
 **`leagues`** — `ORDER BY (sport, league)`: `sport`, `league LowCardinality(String)` (OpticOdds slug), `opticodds_numerical_id Nullable(Int32)`, `opticodds_region Nullable(String)`, `oddspapi_tournament_id Nullable(Int32)`, `oddspapi_category_name Nullable(String)`, `sharpsports_league_id Nullable(String)` (`LGUE_*`), `sharpsports_abbr Nullable(String)`, `sharpsports_sportradar_id Nullable(String)`, `sharpsports_sportsdataio_id Nullable(String)`, `name String`.
 
-**`fixtures`** — `ORDER BY (sport, league, start_time_ms, fixture_id)`: `fixture_id String`, `sport`, `league`, `start_time_ms Int64`, `true_start_ms Nullable(Int64)`, `true_end_ms Nullable(Int64)`, `status LowCardinality(String)` (canonical: `scheduled|live|completed|cancelled|suspended|delayed`), `home_team_id Nullable(String)`, `away_team_id Nullable(String)`, `home_name String`, `away_name String`, `venue_name Nullable(String)`, `venue_neutral Nullable(Bool)`, `season_year Nullable(String)`, `season_type Nullable(String)`, `season_week Nullable(String)`, `home_starter_id Nullable(String)`, `away_starter_id Nullable(String)`, `oddspapi_expected_periods Nullable(Int8)`, `oddspapi_period_length Nullable(Int8)`. (`fixture_xref` stays the id crosswalk; add `oddspapi_betgenius_id`, `oddspapi_flashscore_id`, `oddspapi_sofascore_id`, `oddspapi_mollybet_id`, `sharpsports_sportsdataio_id`, `resolution_method LowCardinality(String)` ∈ `opticoddsId|oddsjamId|team_time|rotation|book_native|manual`, `resolution_score Float32`.)
+**`fixtures`** — `ReplacingMergeTree(updated_ns) ORDER BY (sport, league, start_time_ms, fixture_id)`:
+
+| Column | Type | Source |
+|---|---|---|
+| `fixture_id` | `String` | canonical (§1.3.2) |
+| `sport`, `league` | `LowCardinality(String)` | canonical slugs |
+| `start_time_ms` | `Int64` | OpticOdds `start_date`, OddsPapi `startTime×1000`, SharpSports `startTime` |
+| `true_start_ms`, `true_end_ms` | `Nullable(Int64)` | OddsPapi `trueStartTime` / `trueEndTime` |
+| `status` | `LowCardinality(String)` | canonical `scheduled\|live\|completed\|cancelled\|suspended\|delayed` from OpticOdds `status` / OddsPapi `statusId` |
+| `home_team_id`, `away_team_id` | `Nullable(String)` | canonical team ids (§1.4) |
+| `home_name`, `away_name` | `String` | OpticOdds `home_team_display` / `away_team_display` |
+| `venue_name`, `venue_neutral` | `Nullable(String)`, `Nullable(Bool)` | OpticOdds `venue_name`, `venue_neutral`; OddsPapi `venue.venueName`; SharpSports `neutralVenue` |
+| `season_year`, `season_type`, `season_week` | `Nullable(String)` | OpticOdds; SharpSports `seasonType` (`PRE\|REG\|POST`) |
+| `home_starter_id`, `away_starter_id` | `Nullable(String)` | OpticOdds `home_starter_id` / `away_starter_id` |
+| `oddspapi_expected_periods`, `oddspapi_period_length` | `Nullable(Int8)` | OddsPapi `expectedPeriods`, `periodLength` (needed to interpret `p1..pN`) |
+| `first_seen_ns`, `updated_ns` | `UInt64` | pipeline |
+
+`fixture_xref` (already implemented) gains: `oddspapi_betgenius_id`, `oddspapi_flashscore_id`, `oddspapi_sofascore_id`, `oddspapi_mollybet_id`, `sharpsports_sportsdataio_id` (all `Nullable(String)`), `resolution_method LowCardinality(String)` ∈ `opticoddsId|oddsjamId|team_time|rotation|book_native|manual`, `resolution_score Float32`.
 
 **`teams`** — `ORDER BY (sport, league, team_id)`: `team_id String` (OpticOdds id), `base_id Nullable(Int32)`, `numerical_id Nullable(Int32)`, `name String`, `abbreviation Nullable(String)`, `city Nullable(String)`, `conference Nullable(String)`, `division Nullable(String)`, `statsperform_id Nullable(String)`, `is_active Nullable(Bool)`.
 
@@ -486,11 +503,51 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 
 **`books`** — `ORDER BY book_id`: `book_id LowCardinality(String)`, `name String`, `kind LowCardinality(String)` (`retail|sharp|offshore|exchange|prediction_market|dfs`), `is_exchange Bool`, `two_sided Bool`, `limit_currency Nullable(String)`, `opticodds_is_onshore Nullable(Bool)`.
 
-**`book_xref`** — `ORDER BY (provider, provider_book)`: `provider`, `provider_book String` (OpticOdds `id`, OddsPapi `slug`, SharpSports `abbr`), `provider_book_id Nullable(String)` (SharpSports `BOOK_*`), `provider_name String`, `book_id`, `variant LowCardinality(String)` (`main|lay|usa|uk|pick2|…`), `active Nullable(Bool)` (OpticOdds `is_active` / OddsPapi `active` / SharpSports `status='active'`), `prices Nullable(Bool)` (SharpSports `oddsFeedActive`), `ws_live Nullable(Bool)`, `max_delay_pregame_s Nullable(Float32)`, `max_delay_live_s Nullable(Float32)`, `max_delay_main_s Nullable(Float32)`, `stale_threshold_s Nullable(Float32)`, `player_props Nullable(Bool)`.
+**`book_xref`** — `ReplacingMergeTree(updated_ns) ORDER BY (provider, provider_book)`:
+
+| Column | Type | Source |
+|---|---|---|
+| `provider` | `LowCardinality(String)` | `opticodds\|oddspapi\|sharpsports` |
+| `provider_book` | `String` | OpticOdds `id`, OddsPapi `slug`, SharpSports `abbr` |
+| `provider_book_id` | `Nullable(String)` | SharpSports `BOOK_*` |
+| `provider_name` | `String` | OpticOdds `name`, OddsPapi `bookmakerName`, SharpSports `name` |
+| `book_id` | `LowCardinality(String)` | canonical (§1.6) |
+| `variant` | `LowCardinality(String)` | `main\|lay\|usa\|uk\|new_york\|pick_2\|…` |
+| `active` | `Nullable(Bool)` | OpticOdds `is_active`; OddsPapi `active`; SharpSports `status = 'active'` |
+| `prices` | `Nullable(Bool)` | SharpSports `oddsFeedActive` |
+| `is_onshore` | `Nullable(Bool)` | OpticOdds `is_onshore` |
+| `ws_pregame`, `ws_live` | `Nullable(Bool)` | OddsPapi `websocketPregame`, `websocketLive` |
+| `max_delay_pregame_s`, `max_delay_live_s`, `max_delay_main_s` | `Nullable(Float32)` | OddsPapi `maxDelayPregameInSec`, `maxDelayLiveInSec`, `maxDelayPregameMainInSec` |
+| `stale_threshold_s` | `Nullable(Float32)` | OddsPapi `staleThresholdSec` |
+| `limit_currency` | `Nullable(String)` | OddsPapi `limitCurrency` |
+| `player_props` | `Nullable(Bool)` | OddsPapi `playerProps` |
+| `available_sports` | `Array(Int16)` | OddsPapi `availableSports` |
+| `betplace_web`, `betplace_ios`, `betplace_android` | `Nullable(String)` | SharpSports `betPlaceStatus.{webBrowser,iOS,android}` |
+| `first_seen_ns`, `updated_ns` | `UInt64` | pipeline |
 
 **`markets`** — `ORDER BY (market, period)`: `market LowCardinality(String)`, `period LowCardinality(String)`, `family LowCardinality(String)` (`moneyline|3way|spread|total|team_total|player|team_prop|other|future|prediction`), `metric Nullable(String)`, `n_way Nullable(Int8)`, `has_line Bool`, `subject LowCardinality(String)` (`match|team|player`).
 
-**`market_xref`** — `ORDER BY (provider, provider_market_key)`: `provider`, `provider_market_key String` (OpticOdds `market_id`; OddsPapi `marketId` as string; SharpSports `MKT_*`), `provider_market_name String`, `provider_market_type Nullable(String)` (OpticOdds `market_type_id`; OddsPapi `marketType`; SharpSports `type|proposition`), `provider_period Nullable(String)` (OddsPapi `period`; SharpSports `segmentId`), `provider_line Nullable(Float64)` (OddsPapi `handicap`), `provider_metric Nullable(String)` (SharpSports `metric.id`), `oddsjam_market_key Nullable(String)` (SharpSports `Market.oddsjamId`, joins to OpticOdds `market_id`), `sportradar_market_id Nullable(String)`, `the_odds_api_market_key Nullable(String)`, `market`, `period`, `method`, `reviewed Bool`.
+**`market_xref`** — `ReplacingMergeTree(updated_ns) ORDER BY (provider, provider_market_key)`:
+
+| Column | Type | Source |
+|---|---|---|
+| `provider` | `LowCardinality(String)` | |
+| `provider_market_key` | `String` | OpticOdds `market_id`; OddsPapi `marketId` (as string); SharpSports `MKT_*` |
+| `provider_market_name` | `String` | OpticOdds `market` / `name`; OddsPapi `marketName`; SharpSports `Market.name` |
+| `provider_market_type` | `Nullable(String)` | OpticOdds `market_type_id` (→ `/market-types` `name`); OddsPapi `marketType`; SharpSports `type` + `proposition` |
+| `provider_period` | `Nullable(String)` | OddsPapi `period`; SharpSports `segment.id` |
+| `provider_line` | `Nullable(Float64)` | OddsPapi `handicap` (one row per line) |
+| `provider_sport` | `Nullable(String)` | OddsPapi `sportId`; SharpSports `sport.id`; OpticOdds `sports[].id` coverage tree |
+| `provider_league` | `Nullable(String)` | SharpSports `league.id` (markets are league-scoped) |
+| `provider_metric` | `Nullable(String)` | SharpSports `metric.id` |
+| `is_player`, `is_team`, `is_future` | `Nullable(Bool)` | SharpSports `player`, `team`, `future`; OddsPapi `playerProp` |
+| `n_outcomes` | `Nullable(Int8)` | OddsPapi `marketLength` |
+| `oddsjam_market_key` | `Nullable(String)` | SharpSports `Market.oddsjamId` (== OpticOdds `market_id`) |
+| `sportradar_market_id`, `the_odds_api_market_key`, `sportsdataio_market_id` | `Nullable(String)` | SharpSports `sportradarId`, `theOddsApiId`, `sportsdataioId` |
+| `market`, `period` | `LowCardinality(String)` | canonical |
+| `method` | `LowCardinality(String)` | `oddsjam_key\|type_table\|name_grammar\|manual` |
+| `reviewed` | `Bool` | QA flag |
+| `first_seen_ns`, `updated_ns` | `UInt64` | |
 
 **`quote_snapshots`** — periodic full-board captures (REST `/fixtures/odds`, `/fixtures/odds/main`, `/prices`): same columns as `quotes` plus `snapshot_id String` (raw archive `seq`), `endpoint LowCardinality(String)`; `ORDER BY (snapshot_id, fixture_id, market, period, selection, book_id)`. Today snapshots are written into `quotes` with `event_kind='snapshot'` **[CODE]**.
 
@@ -498,7 +555,21 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 
 **`results`** — `ORDER BY (fixture_id, recv_ns)`: `fixture_id`, `provider`, `status`, `home_total Nullable(Float32)`, `away_total Nullable(Float32)`, `periods String` (JSON of OpticOdds `result.scores.{home,away}.periods` / OddsPapi `scores.{period}` map), `in_play String` (JSON: OpticOdds `in_play_data{period,period_number,clock,last_play}`; OddsPapi `clock{currentPeriod,currentTime,remainingTime,remainingTimeInPeriod,stopped}`), `source_ts_ms`.
 
-**`settlements`** — `ORDER BY (fixture_id, market, period, selection, line, provider, recv_ns)`: canonical key + `provider`, `result LowCardinality(String)` (canonical `win|lose|push|half_win|half_lose|void|pending`), `provider_result String` (OpticOdds `/grader/odds` `Won|Lost|Refunded|Half Won|Half Lost|Pending`; OddsPapi `/fixtures/settlement` `WIN|LOSE|PUSH|HALFWIN|HALFLOSS|CANCELLED|UNDECIDED`), `margin Nullable(Float64)`, `reason Nullable(String)` (`MISSING_PERIODS`, `REQUIRES_NON_SCORE_STATS`), `oddspapi_outcome_id Nullable(Int64)`, `oddspapi_player_id Nullable(Int64)`.
+**`settlements`** — `MergeTree ORDER BY (fixture_id, market, period, selection, line, provider, recv_ns)` (keep every grade transition, e.g. OddsPapi `UNDECIDED → WIN`):
+
+| Column | Type | Source |
+|---|---|---|
+| `recv_ns` | `UInt64` | |
+| `fixture_id`, `market`, `period`, `selection`, `line` | as `quotes` | canonical key |
+| `provider` | `LowCardinality(String)` | `opticodds` (`GET /grader/odds`), `oddspapi` (`GET /fixtures/settlement`) |
+| `result` | `LowCardinality(String)` | canonical `win\|lose\|push\|half_win\|half_lose\|void\|pending` |
+| `provider_result` | `String` | OpticOdds `Won\|Lost\|Refunded\|Half Won\|Half Lost\|Pending`; OddsPapi `WIN\|LOSE\|PUSH\|HALFWIN\|HALFLOSS\|CANCELLED\|UNDECIDED` |
+| `margin` | `Nullable(Float64)` | OddsPapi `margin` (signed from the graded outcome's view) |
+| `home_score`, `away_score` | `Nullable(Float32)` | OddsPapi `team1Score`/`team2Score`; OpticOdds `home_score`/`away_score` |
+| `periods` | `Array(String)` | OddsPapi `periods` (e.g. `["fulltime"]`) |
+| `reason` | `Nullable(String)` | OddsPapi `MISSING_PERIODS`, `REQUIRES_NON_SCORE_STATS` |
+| `oddspapi_market_id`, `oddspapi_outcome_id`, `oddspapi_player_id` | `Nullable(Int64)` | OddsPapi `marketId`, `outcomeId`, `playerId` |
+| `dead_heat_reduction` | `Nullable(Float32)` | OpticOdds grader (golf) |
 
 **`clv`** — `ORDER BY (fixture_id, book_id, market, period, selection, line)`: canonical key + `olv_price_dec`, `olv_ts_ms`, `olv_line`, `clv_price_dec`, `clv_ts_ms`, `clv_line`, `clv_active Nullable(Bool)`, `provider` (OpticOdds `/fixtures/odds/historical` `olv{price,points}`/`clv{price,points}`; OddsPapi `/fixtures/odds/clv` `olv`/`clv` `PricePoint`s), `provider_odd_id`.
 
@@ -540,7 +611,7 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 
 | Queue | Producer **[CODE]** today | Persisted where (planned) | Row content |
 |---|---|---|---|
-| Unresolved fixtures | `FixtureRegistry.unresolved` dict keyed `"<league>|<home>|<away>|<start_ms>"` with hit counts; `report["unresolved_fuzzy"]` at bootstrap; canonical ids `oddspapi:<id>` / `sharpsports:<id>` in `quotes.fixture_id` | `mapping_queue` (`kind='fixture'`, `provider`, `provider_id`, `league`, `home`, `away`, `start_time_ms`, `candidates String` JSON, `first_seen_ns`, `status` ∈ `open|resolved|ignored`, `resolved_to`, `resolved_by`) | nearest OpticOdds candidates by start time (±6 h) with name similarity |
+| Unresolved fixtures | `FixtureRegistry.unresolved` dict keyed `"<league>\|<home>\|<away>\|<start_ms>"` with hit counts; `report["unresolved_fuzzy"]` at bootstrap; canonical ids `oddspapi:<id>` / `sharpsports:<id>` in `quotes.fixture_id` | `mapping_queue` (`kind='fixture'`, `provider`, `provider_id`, `league`, `home`, `away`, `start_time_ms`, `candidates String` JSON, `first_seen_ns`, `status` ∈ `open\|resolved\|ignored`, `resolved_to`, `resolved_by`) | nearest OpticOdds candidates by start time (±6 h) with name similarity |
 | Unknown books | `BookRegistry.unknown[(provider, slug)]` counter; `quotes.book_id LIKE '%:%'` | `mapping_queue` (`kind='book'`) | provider slug, display name, first/last seen, quote volume |
 | Unmapped markets | `quotes.market LIKE 'other:%'` with `provider_market` | `mapping_queue` (`kind='market'`) | provider market key/name, sample selections, volume |
 | Unmapped selections | `quotes.selection LIKE 'other:%'` | `mapping_queue` (`kind='selection'`) | provider selection text, market, examples |
@@ -564,7 +635,7 @@ Types are ClickHouse. Every dimension keeps `first_seen_ns UInt64`, `updated_ns 
 | `fixture_join_drift` | daily diff of `opticodds_id` per `oddspapi_id` | any change (an OddsPapi fixture re-pointing to another OpticOdds id) |
 | `book_unknown_quotes` | pipeline reporter `unknown_books` **[CODE]** / `quotes.book_id LIKE '%:%'` | > 0 for a book that is in the entitled catalogue |
 | `market_other_share` | `quotes.market LIKE 'other:%'` by volume | > 10 % or a new `other:` key above 1 % |
-| `selection_other_share` | `quotes.selection LIKE 'other:%'` | > 5 % on `moneyline|3way|spread|total|team_total` |
+| `selection_other_share` | `quotes.selection LIKE 'other:%'` | > 5 % on `moneyline\|3way\|spread\|total\|team_total` |
 | `cross_provider_price_disagreement` | same canonical key + `book_id`, two providers, ≤ 5 s apart, `abs(price_dec_A − price_dec_B) > 0.02` | > 1 % of comparable pairs (indicates side/sign mapping errors) |
 | `quote_age_p99_ms` per provider/book | `u3.quote_latency` | > 5,000 ms pregame / > 2,000 ms live for `websocketLive` books |
 | `book_stale_minutes` | planned `book_status` (`staleOdds`, `lastOddsAt`, OpticOdds `last-polled`) | any streamed book stale > `staleThresholdSec` |
@@ -633,7 +704,7 @@ Same selection across feeds (full-time total goals, Over 3.5, Pinnacle):
 |---|---|---|
 | OpticOdds | `id` `42573-28098-2026-09-04:pinnacle:total_goals:over_3_5`, `market` `Total Goals`, `selection_line` `over`, `points` 3.5, `price` 120, `is_main` (per row), `limits.max` (per row), `timestamp` 1788423449.84 | `book_id=pinnacle, market=total, period=full, selection=over, line=3.5, price_us=120, price_dec=2.2, source_ts_ms=1788423449842` |
 | OddsPapi | `oddsId` `id1000001772221244:pinnacle:101030:0` (marketId 101030 = `totals`/`fulltime`/handicap 3.5 → outcome `Over`), `price` 2.22, `mainLine` true, `limit` 50.0, `changedAt` 1788375642620, `bookmakerChangedAt` 1788375642127 | `book_id=pinnacle, market=total, period=<raw 'fulltime' today [GAP 5]>, selection=over, line=3.5, price_dec=2.22, limit_max=50.0, source_ts_ms=1788375642127, gateway_ts_ms=<ws ts>` |
-| SharpSports | Pinnacle is not offered on this EPL event (books present: `mg, fd, br, dk, hr`); for `Total` / `Over` at `br`: `{line: 2.5, odds: 155, main: false, live: false, ev: null}` | `book_id=betrivers, market=total, period=full, selection=over, line=2.5, price_us=155, source_ts_ms=NULL, event_kind=snapshot` |
+| SharpSports | Pinnacle is not offered on this EPL event (books present: `mg, fd, br, dk, hr`); `Total` market, selection `Under` (`positionId: null`) at `br`: prices `{line: 4.0, odds: -335, main: false}`, `{line: 2.5, odds: 155, main: false}` | `book_id=betrivers, market=total, period=full, selection=under, line=2.5, price_us=155, price_dec=2.55, is_main=false, source_ts_ms=NULL, event_kind=snapshot, provider_odd_id='MRKT_…\|br\|2.5'` |
 
 ## Appendix C — bootstrap sequence and ingestion universe **[CODE]**
 
