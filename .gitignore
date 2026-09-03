@@ -25,3 +25,4 @@ __pycache__/
 *.pyc
 data/
 *.jsonl.gz
+u3_ingest.egg-info/
