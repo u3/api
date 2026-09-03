@@ -126,8 +126,10 @@ class OpticOddsClient(RestClient):
             out += (await self.get("/futures/odds", {"league": league, "sportsbook": bk, "future": future})).get("data", [])
         return out
 
-    async def parlay_odds(self, sportsbook: str, odd_ids: Sequence[str], **extra: Any) -> dict:
-        return await self.post("/parlay/odds", {"sportsbook": sportsbook, "odds": list(odd_ids), **extra})
+    async def parlay_odds(self, sportsbooks: Sequence[str], entries: Sequence[dict], **extra: Any) -> dict:
+        """Price a parlay/SGP. Live API body: {"sportsbooks": [...], "entries": [{"fixture_id","market","name"}, ...]}
+        (market is the display label, e.g. "Moneyline"); see docs/research/opticodds.md §9.1."""
+        return await self.post("/parlay/odds", {"sportsbooks": list(sportsbooks), "entries": list(entries), **extra})
 
     # ---- results / grading / injuries ----
     async def fixture_results(self, *, fixture_ids: Sequence[str] | None = None, league: str | None = None, **params: Any) -> list[dict]:
