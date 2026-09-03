@@ -1,0 +1,5 @@
+# Code owners are automatically requested for review and, with the ruleset's
+# "require review from code owners" rule, must approve before merge.
+*                     @u3
+/.github/             @u3
+/.github/workflows/   @u3

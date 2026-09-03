@@ -1,0 +1,41 @@
+# Dependabot version updates. Security updates are enabled separately in repo settings
+# (the apply-github-settings.sh script does that).
+# Keep only the ecosystem blocks whose manifest actually exists in the repo.
+version: 2
+updates:
+  # Keeps every GitHub Action referenced in .github/workflows up to date.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "github-actions"]
+
+  # --- Uncomment the block(s) that match the stack once code is pushed ---
+  # - package-ecosystem: "npm"          # package.json / package-lock.json / pnpm / yarn
+  #   directory: "/"
+  #   schedule: { interval: "weekly", day: "monday" }
+  #   groups:
+  #     minor-and-patch:
+  #       update-types: ["minor", "patch"]
+  #   open-pull-requests-limit: 10
+  #   labels: ["dependencies"]
+  #
+  # - package-ecosystem: "pip"          # requirements.txt / pyproject.toml / poetry
+  #   directory: "/"
+  #   schedule: { interval: "weekly", day: "monday" }
+  #   groups:
+  #     minor-and-patch:
+  #       update-types: ["minor", "patch"]
+  #   labels: ["dependencies"]
+  #
+  # - package-ecosystem: "gomod"
+  #   directory: "/"
+  #   schedule: { interval: "weekly", day: "monday" }
+  #
+  # - package-ecosystem: "docker"       # Dockerfile base images
+  #   directory: "/"
+  #   schedule: { interval: "weekly", day: "monday" }

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least-privilege default; individual jobs raise what they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Replace this block with the real toolchain once code is pushed, e.g.
+      #   - uses: actions/setup-node@v4
+      #     with: { node-version: 22, cache: npm }
+      #   - run: npm ci && npm test
+      # or
+      #   - uses: actions/setup-python@v5
+      #     with: { python-version: "3.12" }
+      #   - run: pip install -e .[test] && pytest
+      - name: Placeholder build step
+        run: |
+          echo "No build defined yet. Edit .github/workflows/ci.yml to add the real toolchain."
+          echo "Keep this job named 'Build & test' or update the ruleset's required checks."
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Placeholder lint step
+        run: echo "Add the project linter here (eslint / ruff / golangci-lint ...)."

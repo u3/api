@@ -1,0 +1,25 @@
+# Secrets and local config: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Build output and dependencies (adjust for the stack)
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.pyc
